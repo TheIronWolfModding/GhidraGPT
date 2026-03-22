@@ -830,6 +830,29 @@ public class FunctionRewrite {
         int transactionID = program.startTransaction("Comprehensive Function Rewrite: " + function.getName());
         boolean success = false;
         
+        // Calculate total changes for progress tracking
+        int totalChanges = 0;
+        if (configManager != null && configManager.isApplyFunctionRename()
+                && spec.functionName != null && !spec.functionName.equals(function.getName())) {
+            totalChanges++;
+        }
+        if (configManager != null && configManager.isApplyFunctionPrototype()
+                && spec.functionPrototype != null && !spec.functionPrototype.trim().isEmpty()) {
+            totalChanges++;
+        }
+        totalChanges += spec.variableTypes.size();
+        totalChanges += spec.variableRenames.size();
+        if (!spec.comments.isEmpty()) {
+            totalChanges++;
+        }
+        totalChanges += spec.globalTypes.size();
+        totalChanges += spec.globalRenames.size();
+        
+        int currentChange = 0;
+        long lastStatusTime = System.currentTimeMillis();
+        boolean printStatus = console != null && configManager != null
+                && configManager.isPrintRewriteSummary() && totalChanges > 0;
+        
         try {
             // 1. Apply function rename if enabled in config
             
@@ -845,6 +868,8 @@ public class FunctionRewrite {
                     result.suggestionOutcomes.add(new SuggestionOutcome("Function Rename", result.originalFunctionName + " \u2192 " + spec.functionName, false, e.getMessage()));
                     result.errors.add("Failed to rename function to " + spec.functionName + ": " + e.getMessage());
                 }
+                currentChange++;
+                lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
             // 2. Apply function prototype if enabled in config
@@ -859,6 +884,8 @@ public class FunctionRewrite {
                     result.errors.add("Failed to update function prototype: " + e.getMessage());
                     Msg.error(this, "Prototype update failed", e);
                 }
+                currentChange++;
+                lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
             // 3. Apply member field type changes FIRST (before renames)
@@ -879,6 +906,8 @@ public class FunctionRewrite {
                     result.typeUpdates.put(varName, newType); // mark as handled so step 5 skips it
                     result.suggestionOutcomes.add(new SuggestionOutcome("Field Type", varName + " \u2192 " + newType, false, fieldTypeResult));
                 }
+                currentChange++;
+                lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
             // 4. Apply variable renames using HighFunctionDBUtil, with member field fallback
@@ -905,6 +934,8 @@ public class FunctionRewrite {
                     result.suggestionOutcomes.add(new SuggestionOutcome("Variable Rename", oldName + " \u2192 " + newName, false, "Variable not found in decompiler output"));
                     result.errors.add("Failed to rename variable: " + oldName);
                 }
+                currentChange++;
+                lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
             // 5. Apply remaining variable type changes (non-member-field locals/params)
@@ -928,6 +959,8 @@ public class FunctionRewrite {
                     result.suggestionOutcomes.add(new SuggestionOutcome("Type Change", varName + " \u2192 " + newType, false, typeResult));
                     result.errors.add("Failed to change type for variable: " + varName);
                 }
+                currentChange++;
+                lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
             // 6. Apply all comments as a single plate comment on the function
@@ -953,6 +986,8 @@ public class FunctionRewrite {
                 }
                 function.setComment(plateComment.toString().trim());
                 Msg.info(this, "Added " + commentCount + " comment(s) as function plate comment");
+                currentChange++;
+                lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
             // 7. Apply global variable type changes FIRST (before renames, so we resolve by old name)
@@ -979,6 +1014,8 @@ public class FunctionRewrite {
                     result.suggestionOutcomes.add(new SuggestionOutcome(
                         "Global Type", globalName + " \u2192 " + newType, false, globalTypeResult));
                 }
+                currentChange++;
+                lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
             // 8. Apply global variable renames
@@ -1005,6 +1042,8 @@ public class FunctionRewrite {
                     result.suggestionOutcomes.add(new SuggestionOutcome(
                         "Global Rename", oldName + " \u2192 " + newName, false, "Symbol not found in program"));
                 }
+                currentChange++;
+                lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
             success = true;
@@ -1078,6 +1117,22 @@ public class FunctionRewrite {
         }
         
         return result;
+    }
+    
+    /**
+     * Print status update on first change, last change, and every 10 seconds in between.
+     * Returns the (possibly updated) lastStatusTime.
+     */
+    private long maybePrintStatus(boolean printStatus, int currentChange, int totalChanges, long lastStatusTime) {
+        if (!printStatus) {
+            return lastStatusTime;
+        }
+        long now = System.currentTimeMillis();
+        if (currentChange == 1 || currentChange == totalChanges || now - lastStatusTime >= 10000) {
+            console.appendInfo("Applying change " + currentChange + " of " + totalChanges);
+            return now;
+        }
+        return lastStatusTime;
     }
     
     /**
