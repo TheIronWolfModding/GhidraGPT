@@ -30,6 +30,7 @@ public class Console extends JPanel {
     // Cancel support
     private JButton cancelButton;
     private volatile TaskMonitor activeMonitor;
+    private volatile Thread activeThread;
     
     public Console() {
         setLayout(new BorderLayout());
@@ -370,25 +371,32 @@ public class Console extends JPanel {
     
     private void cancelOperation() {
         TaskMonitor monitor = activeMonitor;
+        Thread thread = activeThread;
         if (monitor != null) {
             monitor.cancel();
-            appendMessage("⛔ System", "Cancel requested — operation will stop after current step.", MessageType.WARNING);
+            // Interrupt the thread to break blocking I/O (HTTP stream reads)
+            if (thread != null) {
+                thread.interrupt();
+            }
+            appendMessage("⛔ System", "Cancel requested — aborting operation.", MessageType.WARNING);
         }
     }
     
     /**
-     * Set the active monitor for the current operation. Enables the Cancel button.
+     * Set the active monitor and thread for the current operation. Enables the Cancel button.
      */
     public void setActiveMonitor(TaskMonitor monitor) {
         this.activeMonitor = monitor;
+        this.activeThread = Thread.currentThread();
         SwingUtilities.invokeLater(() -> cancelButton.setEnabled(monitor != null));
     }
     
     /**
-     * Clear the active monitor. Disables the Cancel button.
+     * Clear the active monitor and thread. Disables the Cancel button.
      */
     public void clearActiveMonitor() {
         this.activeMonitor = null;
+        this.activeThread = null;
         SwingUtilities.invokeLater(() -> cancelButton.setEnabled(false));
     }
     

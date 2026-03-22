@@ -15,7 +15,6 @@ import ghidra.app.decompiler.DecompileResults;
 import ghidra.app.decompiler.ClangTokenGroup;
 import ghidra.app.decompiler.ClangNode;
 import ghidra.app.decompiler.ClangToken;
-import ghidra.util.exception.CancelledException;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
 import ghidra.util.task.ConsoleTaskMonitor;
@@ -154,11 +153,6 @@ public class FunctionRewrite {
                     
                     @Override
                     public void onPartialResponse(String partialContent) {
-                        // Check for cancellation during streaming
-                        if (monitor.isCancelled()) {
-                            throw new RuntimeException("CANCELLED");
-                        }
-                        
                         streamBuffer.append(partialContent);
                         
                         // Print header on first response
@@ -194,17 +188,13 @@ public class FunctionRewrite {
                 });
             } catch (java.net.SocketTimeoutException e) {
                 throw new RuntimeException("Request timed out. Function may be too complex. Consider breaking it down into smaller functions.", e);
-            } catch (RuntimeException e) {
-                if ("CANCELLED".equals(e.getMessage())) {
+            } catch (java.io.IOException e) {
+                // Thread interrupt during streaming causes IOException - treat as cancellation
+                if (monitor.isCancelled()) {
                     result.message = "Operation cancelled during LLM response.";
-                    if (console != null) {
-                        console.appendMessage("\u26d4 System", "Operation cancelled during LLM response.", Console.MessageType.WARNING);
-                    }
                     return result;
                 }
-                throw e;
-            } catch (java.io.IOException e) {
-                if (e.getMessage().contains("timeout")) {
+                if (e.getMessage() != null && e.getMessage().contains("timeout")) {
                     throw new RuntimeException("Network timeout occurred. Check your internet connection or try again later.", e);
                 }
                 throw e;
