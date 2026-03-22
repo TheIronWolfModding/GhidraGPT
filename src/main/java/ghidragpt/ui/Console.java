@@ -70,7 +70,7 @@ public class Console extends JPanel {
         add(scrollPane, BorderLayout.CENTER);
         
         // Welcome message with style
-        appendMessage("🚀 GhidraGPT", "Console initialized. AI analysis results will appear here.", MessageType.HEADER);
+        appendMessage("🚀 GhidraGPT", "Console initialized. LLM analysis results will appear here.", MessageType.HEADER);
     }
     
     private void initializeStyles() {
@@ -284,11 +284,11 @@ public class Console extends JPanel {
      */
     public void printStreamHeader() {
         try {
-            String header = "\n┌─ ▲ AI Response Stream ─────────────────────────────────┐\n";
+            String header = "\n┌─ ▲ LLM Response Stream ─────────────────────────────────┐\n";
             document.insertString(document.getLength(), header, textPane.getStyle("success"));
             textPane.setCaretPosition(document.getLength());
         } catch (BadLocationException e) {
-            appendMessage("Stream", "AI Response starting...", MessageType.INFO);
+            appendMessage("Stream", "LLM Response starting...", MessageType.INFO);
         }
     }
     

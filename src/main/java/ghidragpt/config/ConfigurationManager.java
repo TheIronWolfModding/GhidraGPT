@@ -238,7 +238,7 @@ public class ConfigurationManager {
     }
     
     /**
-     * Whether to apply AI-suggested function renames
+     * Whether to apply LLM-suggested function renames
      */
     public boolean isApplyFunctionRename() {
         return Boolean.parseBoolean(properties.getProperty(APPLY_FUNCTION_RENAME_PROPERTY, "false"));
@@ -249,7 +249,7 @@ public class ConfigurationManager {
     }
     
     /**
-     * Whether to apply AI-suggested function prototypes
+     * Whether to apply LLM-suggested function prototypes
      */
     public boolean isApplyFunctionPrototype() {
         return Boolean.parseBoolean(properties.getProperty(APPLY_FUNCTION_PROTOTYPE_PROPERTY, "false"));

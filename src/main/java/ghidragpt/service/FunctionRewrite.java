@@ -982,8 +982,8 @@ public class FunctionRewrite {
                 StringBuilder plateComment = new StringBuilder();
                 String existingComment = function.getComment();
                 if (existingComment != null && !existingComment.isEmpty()) {
-                    // Strip any previous AI Guesswork Notes section before appending new ones
-                    int aiNotesIdx = existingComment.indexOf("AI Guesswork Notes:");
+                    // Strip any previous LLM Guesswork Notes section before appending new ones
+                    int aiNotesIdx = existingComment.indexOf("LLM Guesswork Notes:");
                     if (aiNotesIdx >= 0) {
                         existingComment = existingComment.substring(0, aiNotesIdx).trim();
                     }
@@ -991,7 +991,7 @@ public class FunctionRewrite {
                         plateComment.append(existingComment).append("\n\n");
                     }
                 }
-                plateComment.append("AI Guesswork Notes:\n");
+                plateComment.append("LLM Guesswork Notes:\n");
                 for (Map.Entry<String, String> comment : spec.comments.entrySet()) {
                     plateComment.append("  [").append(comment.getKey()).append("] ").append(comment.getValue()).append("\n");
                     commentCount++;
@@ -1570,7 +1570,7 @@ public class FunctionRewrite {
                 return true;
             }
             
-            // 2. Try subtracting 0x400000 (AI gives original PE base addresses)
+            // 2. Try subtracting 0x400000 (LLM gives original PE base addresses)
             try {
                 long rawAddr = Long.decode(addressStr);
                 long adjusted = rawAddr - 0x400000;

@@ -153,7 +153,7 @@ public class ConfigurationPanel extends JPanel {
         customInstructionsArea = new JTextArea(3, 30);
         customInstructionsArea.setLineWrap(true);
         customInstructionsArea.setWrapStyleWord(true);
-        customInstructionsArea.setToolTipText("Extra instructions appended to the AI prompt (e.g. 'Always use camelCase names')");
+        customInstructionsArea.setToolTipText("Extra instructions appended to the LLM prompt (e.g. 'Always use camelCase names')");
         JScrollPane scrollPane = new JScrollPane(customInstructionsArea);
         scrollPane.setPreferredSize(new Dimension(300, 60));
         gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
