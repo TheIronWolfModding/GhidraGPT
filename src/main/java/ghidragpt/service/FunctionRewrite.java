@@ -959,8 +959,6 @@ public class FunctionRewrite {
                     result.suggestionOutcomes.add(new SuggestionOutcome("Type Change", varName + " \u2192 " + newType, false, typeResult));
                     result.errors.add("Failed to change type for variable: " + varName);
                 }
-                currentChange++;
-                lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
             // 6. Apply all comments as a single plate comment on the function
