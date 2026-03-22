@@ -9,6 +9,8 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 
+import ghidra.util.task.TaskMonitor;
+
 /**
  * Dedicated console for GhidraGPT output
  */
@@ -24,6 +26,10 @@ public class Console extends JPanel {
     private Style functionStyle;
     private Style resultStyle;
     private Style errorStyle;
+    
+    // Cancel support
+    private JButton cancelButton;
+    private volatile TaskMonitor activeMonitor;
     
     public Console() {
         setLayout(new BorderLayout());
@@ -119,6 +125,11 @@ public class Console extends JPanel {
         copyButton.setPreferredSize(new Dimension(85, 24));
         copyButton.addActionListener(e -> copyToClipboard());
         
+        cancelButton = createStyledButton("⛔ Cancel", new Color(229, 192, 123));
+        cancelButton.setPreferredSize(new Dimension(95, 24));
+        cancelButton.setEnabled(false);
+        cancelButton.addActionListener(e -> cancelOperation());
+        
         // Add a title label
         JLabel titleLabel = new JLabel("🤖 GhidraGPT Console");
         titleLabel.setForeground(new Color(198, 120, 221));
@@ -129,6 +140,8 @@ public class Console extends JPanel {
         toolbar.add(clearButton);
         toolbar.add(Box.createHorizontalStrut(5));
         toolbar.add(copyButton);
+        toolbar.add(Box.createHorizontalStrut(5));
+        toolbar.add(cancelButton);
         
         return toolbar;
     }
@@ -353,6 +366,30 @@ public class Console extends JPanel {
     private void clearConsole() {
         textPane.setText("");
         appendMessage("🧹 System", "Console cleared.", MessageType.SUCCESS);
+    }
+    
+    private void cancelOperation() {
+        TaskMonitor monitor = activeMonitor;
+        if (monitor != null) {
+            monitor.cancel();
+            appendMessage("⛔ System", "Cancel requested — operation will stop after current step.", MessageType.WARNING);
+        }
+    }
+    
+    /**
+     * Set the active monitor for the current operation. Enables the Cancel button.
+     */
+    public void setActiveMonitor(TaskMonitor monitor) {
+        this.activeMonitor = monitor;
+        SwingUtilities.invokeLater(() -> cancelButton.setEnabled(monitor != null));
+    }
+    
+    /**
+     * Clear the active monitor. Disables the Cancel button.
+     */
+    public void clearActiveMonitor() {
+        this.activeMonitor = null;
+        SwingUtilities.invokeLater(() -> cancelButton.setEnabled(false));
     }
     
     private void copyToClipboard() {

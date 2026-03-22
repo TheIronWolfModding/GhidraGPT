@@ -15,6 +15,7 @@ import ghidra.app.decompiler.DecompileResults;
 import ghidra.app.decompiler.ClangTokenGroup;
 import ghidra.app.decompiler.ClangNode;
 import ghidra.app.decompiler.ClangToken;
+import ghidra.util.exception.CancelledException;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
 import ghidra.util.task.ConsoleTaskMonitor;
@@ -153,6 +154,11 @@ public class FunctionRewrite {
                     
                     @Override
                     public void onPartialResponse(String partialContent) {
+                        // Check for cancellation during streaming
+                        if (monitor.isCancelled()) {
+                            throw new RuntimeException("CANCELLED");
+                        }
+                        
                         streamBuffer.append(partialContent);
                         
                         // Print header on first response
@@ -188,6 +194,15 @@ public class FunctionRewrite {
                 });
             } catch (java.net.SocketTimeoutException e) {
                 throw new RuntimeException("Request timed out. Function may be too complex. Consider breaking it down into smaller functions.", e);
+            } catch (RuntimeException e) {
+                if ("CANCELLED".equals(e.getMessage())) {
+                    result.message = "Operation cancelled during LLM response.";
+                    if (console != null) {
+                        console.appendMessage("\u26d4 System", "Operation cancelled during LLM response.", Console.MessageType.WARNING);
+                    }
+                    return result;
+                }
+                throw e;
             } catch (java.io.IOException e) {
                 if (e.getMessage().contains("timeout")) {
                     throw new RuntimeException("Network timeout occurred. Check your internet connection or try again later.", e);
@@ -196,6 +211,13 @@ public class FunctionRewrite {
             }
             
             monitor.setProgress(70);
+            
+            // Check for cancellation before parsing/applying
+            if (monitor.isCancelled()) {
+                result.errors.add("Operation cancelled by user before changes were applied");
+                result.message = "Operation cancelled before changes were applied.";
+                return result;
+            }
             
             // Parsing model response for comprehensive rewrite specification
             ComprehensiveRewriteSpec rewriteSpec = parseComprehensiveRewriteResponse(aiResponse);
@@ -856,7 +878,7 @@ public class FunctionRewrite {
         try {
             // 1. Apply function rename if enabled in config
             
-            if (configManager != null && configManager.isApplyFunctionRename()
+            if (!monitor.isCancelled() && configManager != null && configManager.isApplyFunctionRename()
                     && spec.functionName != null && !spec.functionName.equals(function.getName())) {
                 try {
                     function.setName(spec.functionName, SourceType.USER_DEFINED);
@@ -873,7 +895,7 @@ public class FunctionRewrite {
             }
             
             // 2. Apply function prototype if enabled in config
-            if (configManager != null && configManager.isApplyFunctionPrototype()
+            if (!monitor.isCancelled() && configManager != null && configManager.isApplyFunctionPrototype()
                     && spec.functionPrototype != null && !spec.functionPrototype.trim().isEmpty()) {
                 try {
                     applyFunctionPrototype(function, program, spec.functionPrototype);
@@ -892,6 +914,7 @@ public class FunctionRewrite {
             // Changing undefined1 -> float creates a proper 4-byte component that can then be renamed
             int fieldTypeCount = 0;
             for (Map.Entry<String, String> typeChange : spec.variableTypes.entrySet()) {
+                if (monitor.isCancelled()) break;
                 String varName = typeChange.getKey();
                 String newType = typeChange.getValue();
                 
@@ -914,6 +937,7 @@ public class FunctionRewrite {
             int renameCount = 0;
             int fieldRenameCount = 0;
             for (Map.Entry<String, String> rename : spec.variableRenames.entrySet()) {
+                if (monitor.isCancelled()) break;
                 String oldName = rename.getKey();
                 String newName = rename.getValue();
                 
@@ -941,6 +965,7 @@ public class FunctionRewrite {
             // 5. Apply remaining variable type changes (non-member-field locals/params)
             int typeCount = 0;
             for (Map.Entry<String, String> typeChange : spec.variableTypes.entrySet()) {
+                if (monitor.isCancelled()) break;
                 String varName = typeChange.getKey();
                 String newType = typeChange.getValue();
                 
@@ -963,7 +988,7 @@ public class FunctionRewrite {
             
             // 6. Apply all comments as a single plate comment on the function
             int commentCount = 0;
-            if (!spec.comments.isEmpty()) {
+            if (!monitor.isCancelled() && !spec.comments.isEmpty()) {
                 StringBuilder plateComment = new StringBuilder();
                 String existingComment = function.getComment();
                 if (existingComment != null && !existingComment.isEmpty()) {
@@ -991,6 +1016,7 @@ public class FunctionRewrite {
             // 7. Apply global variable type changes FIRST (before renames, so we resolve by old name)
             int globalTypeCount = 0;
             for (Map.Entry<String, String> typeChange : spec.globalTypes.entrySet()) {
+                if (monitor.isCancelled()) break;
                 String globalName = typeChange.getKey();
                 String newType = typeChange.getValue();
                 // LLM may use the NEW name as key (post-rename). Reverse-lookup the old name.
@@ -1019,6 +1045,7 @@ public class FunctionRewrite {
             // 8. Apply global variable renames
             int globalRenameCount = 0;
             for (Map.Entry<String, String> rename : spec.globalRenames.entrySet()) {
+                if (monitor.isCancelled()) break;
                 String oldName = rename.getKey();
                 String newName = rename.getValue();
                 // Skip identity renames
@@ -1048,6 +1075,9 @@ public class FunctionRewrite {
             
             // Build result message
             StringBuilder message = new StringBuilder();
+            if (monitor.isCancelled()) {
+                message.append("Operation cancelled. Partial changes applied:\n");
+            }
             if (result.functionRenamed) {
                 message.append("Function renamed: ").append(result.originalFunctionName)
                        .append(" → ").append(result.newFunctionName).append("\n");

@@ -346,6 +346,7 @@ public class GhidraGPTProvider extends ComponentProvider {
         Thread analysisThread = new Thread(() -> {
             // Create a simple no-op monitor since we rely on console streaming for progress
             TaskMonitor monitor = new TaskMonitorAdapter();
+            console.setActiveMonitor(monitor);
 
             try {
                 // Switch to console tab to show streaming output
@@ -361,6 +362,8 @@ public class GhidraGPTProvider extends ComponentProvider {
                 SwingUtilities.invokeLater(() -> {
                     console.appendError(function.getName(), "Failed to analyze function: " + e.getMessage());
                 });
+            } finally {
+                console.clearActiveMonitor();
             }
         });
 
@@ -385,6 +388,7 @@ public class GhidraGPTProvider extends ComponentProvider {
         Thread analysisThread = new Thread(() -> {
             // Create a simple no-op monitor since we rely on console streaming for progress
             TaskMonitor monitor = new TaskMonitorAdapter();
+            console.setActiveMonitor(monitor);
 
             try {
                 // Switch to console tab to show streaming output
@@ -400,6 +404,8 @@ public class GhidraGPTProvider extends ComponentProvider {
                 SwingUtilities.invokeLater(() -> {
                     console.appendError(function.getName(), "Failed to analyze function: " + e.getMessage());
                 });
+            } finally {
+                console.clearActiveMonitor();
             }
         });
 
