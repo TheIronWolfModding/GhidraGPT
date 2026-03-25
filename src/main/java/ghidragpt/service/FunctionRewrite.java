@@ -1533,6 +1533,12 @@ public class FunctionRewrite {
             if (offsetMatcher.find()) {
                 int fieldOffset = Integer.parseInt(offsetMatcher.group(1), 16);
                 
+                // Grow the struct if the offset is beyond its current length
+                if (fieldOffset >= topStruct.getLength()) {
+                    topStruct.growStructure(fieldOffset - topStruct.getLength() + 4);
+                    Msg.info(this, "Grew struct " + topStruct.getName() + " to cover offset 0x" + Integer.toHexString(fieldOffset));
+                }
+                
                 // Try top-level struct first
                 DataTypeComponent component = topStruct.getComponentAt(fieldOffset);
                 if (component != null) {
@@ -1679,6 +1685,13 @@ public class FunctionRewrite {
                 Matcher offsetMatcher = Pattern.compile("0x([0-9a-fA-F]+)").matcher(nameForOffset);
                 if (offsetMatcher.find()) {
                     int fieldOffset = Integer.parseInt(offsetMatcher.group(1), 16);
+                    
+                    // Grow the struct if the offset is beyond its current length
+                    if (fieldOffset >= topStruct.getLength()) {
+                        topStruct.growStructure(fieldOffset - topStruct.getLength() + 4);
+                        Msg.info(this, "Grew struct " + topStruct.getName() + " to cover offset 0x" + Integer.toHexString(fieldOffset));
+                    }
+                    
                     component = topStruct.getComponentAt(fieldOffset);
                     if (component == null) {
                         component = findComponentByOffsetInNestedStructs(topStruct, fieldOffset);
@@ -1687,7 +1700,7 @@ public class FunctionRewrite {
             }
             
             if (component == null) {
-                return "";
+                return "Field not found in struct at offset";
             }
             
             // Only change type if current type is undefined
