@@ -352,8 +352,15 @@ public class Console extends JPanel {
                 document.insertString(document.getLength(), "\nSuggestion Summary:\n", resultStyle);
                 document.insertString(document.getLength(), separator, resultStyle);
                 for (String[] line : lines) {
-                    // line[0] = "OK" or "FAIL", line[1] = text
-                    Style style = "OK".equals(line[0]) ? textPane.getStyle("success") : errorStyle;
+                    // line[0] = "OK", "SKIP", or "FAIL"; line[1] = text
+                    Style style;
+                    if ("OK".equals(line[0])) {
+                        style = textPane.getStyle("success");
+                    } else if ("SKIP".equals(line[0])) {
+                        style = textPane.getStyle("warning");
+                    } else {
+                        style = errorStyle;
+                    }
                     document.insertString(document.getLength(), line[1] + "\n", style);
                 }
                 document.insertString(document.getLength(), separator + "\n", resultStyle);

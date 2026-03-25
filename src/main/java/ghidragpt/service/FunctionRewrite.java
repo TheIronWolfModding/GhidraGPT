@@ -1125,11 +1125,15 @@ public class FunctionRewrite {
             }
             for (SuggestionOutcome outcome : result.suggestionOutcomes) {
                 if (outcome.applied) continue;
-                String text = "[FAIL] [" + outcome.category + "] " + outcome.suggestion;
+                boolean skipped = outcome.reason != null &&
+                    (outcome.reason.startsWith("Already typed as") ||
+                     outcome.reason.equals("Already user-renamed"));
+                String tag = skipped ? "SKIP" : "FAIL";
+                String text = "[" + tag + "] [" + outcome.category + "] " + outcome.suggestion;
                 if (outcome.reason != null) {
                     text += "  -> Reason: " + outcome.reason;
                 }
-                lines.add(new String[]{"FAIL", text});
+                lines.add(new String[]{tag, text});
             }
             console.printSuggestionSummary(function.getName(), lines);
         }
