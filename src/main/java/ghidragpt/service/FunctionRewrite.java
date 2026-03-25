@@ -1119,6 +1119,8 @@ public class FunctionRewrite {
         if (console != null && !result.suggestionOutcomes.isEmpty()
                 && configManager != null && configManager.isPrintRewriteSummary()) {
             List<String[]> lines = new ArrayList<>();
+            List<String[]> skipLines = new ArrayList<>();
+            List<String[]> failLines = new ArrayList<>();
             for (SuggestionOutcome outcome : result.suggestionOutcomes) {
                 if (!outcome.applied) continue;
                 lines.add(new String[]{"OK", "[OK] [" + outcome.category + "] " + outcome.suggestion});
@@ -1133,8 +1135,14 @@ public class FunctionRewrite {
                 if (outcome.reason != null) {
                     text += "  -> Reason: " + outcome.reason;
                 }
-                lines.add(new String[]{tag, text});
+                if (skipped) {
+                    skipLines.add(new String[]{tag, text});
+                } else {
+                    failLines.add(new String[]{tag, text});
+                }
             }
+            lines.addAll(skipLines);
+            lines.addAll(failLines);
             console.printSuggestionSummary(function.getName(), lines);
         }
         
