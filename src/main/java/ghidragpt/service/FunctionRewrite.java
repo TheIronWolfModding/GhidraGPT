@@ -923,56 +923,67 @@ public class FunctionRewrite {
                 lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
-            // 4. Apply variable renames using HighFunctionDBUtil, with member field fallback
+            // 4. Apply variable renames in a single decompilation pass, with member field fallback
             int renameCount = 0;
             int fieldRenameCount = 0;
-            for (Map.Entry<String, String> rename : spec.variableRenames.entrySet()) {
-                if (monitor.isCancelled()) break;
-                String oldName = rename.getKey();
-                String newName = rename.getValue();
-                
-                if (applyVariableRename(function, program, oldName, newName)) {
+            
+            // Batch rename all non-field, non-this variables in one decompile
+            List<RenameResult> batchRenameResults = applyVariableRenameBatch(function, program, spec.variableRenames, monitor);
+            for (RenameResult rr : batchRenameResults) {
+                if (rr.applied) {
                     renameCount++;
-                    result.variableRenames.put(oldName, newName);
-                    result.suggestionOutcomes.add(new SuggestionOutcome("Variable Rename", oldName + " \u2192 " + newName, true, null));
-                    Msg.info(this, "Renamed variable: " + oldName + " -> " + newName);
-                } else if (isMemberFieldName(oldName) && applyMemberFieldRename(function, program, oldName, newName)) {
-                    fieldRenameCount++;
-                    result.variableRenames.put(oldName, newName);
-                    result.suggestionOutcomes.add(new SuggestionOutcome("Field Rename", oldName + " \u2192 " + newName, true, null));
-                    Msg.info(this, "Renamed struct field: " + oldName + " -> " + newName);
-                } else if ("this".equals(oldName)) {
-                    // Skipping 'this' is expected - Ghidra does not allow renaming auto-parameters
-                    Msg.info(this, "Skipping rename of auto-parameter 'this'");
+                    result.variableRenames.put(rr.oldName, rr.newName);
+                    result.suggestionOutcomes.add(new SuggestionOutcome("Variable Rename", rr.oldName + " \u2192 " + rr.newName, true, null));
+                    Msg.info(this, "Renamed variable: " + rr.oldName + " -> " + rr.newName);
                 } else {
-                    result.suggestionOutcomes.add(new SuggestionOutcome("Variable Rename", oldName + " \u2192 " + newName, false, "Variable not found in decompiler output"));
-                    result.errors.add("Failed to rename variable: " + oldName);
+                    result.suggestionOutcomes.add(new SuggestionOutcome("Variable Rename", rr.oldName + " \u2192 " + rr.newName, false, rr.failureReason));
+                    result.errors.add("Failed to rename variable: " + rr.oldName);
                 }
                 currentChange++;
                 lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
-            // 5. Apply remaining variable type changes (non-member-field locals/params)
-            int typeCount = 0;
-            for (Map.Entry<String, String> typeChange : spec.variableTypes.entrySet()) {
+            // Handle member field renames and 'this' separately
+            for (Map.Entry<String, String> rename : spec.variableRenames.entrySet()) {
                 if (monitor.isCancelled()) break;
-                String varName = typeChange.getKey();
-                String newType = typeChange.getValue();
+                String oldName = rename.getKey();
+                String newName = rename.getValue();
                 
-                // Skip if already handled as member field type change
-                if (result.typeUpdates.containsKey(varName)) {
+                // Skip entries already handled by the batch
+                if (!"this".equals(oldName) && !isMemberFieldName(oldName)) {
                     continue;
                 }
                 
-                String typeResult = applyVariableTypeChange(function, program, varName, newType);
-                if (typeResult == null) {
-                    typeCount++;
-                    result.typeUpdates.put(varName, newType);
-                    result.suggestionOutcomes.add(new SuggestionOutcome("Type Change", varName + " \u2192 " + newType, true, null));
-                    Msg.info(this, "Changed type for " + varName + " to " + newType);
+                if ("this".equals(oldName)) {
+                    Msg.info(this, "Skipping rename of auto-parameter 'this'");
+                } else if (applyMemberFieldRename(function, program, oldName, newName)) {
+                    fieldRenameCount++;
+                    result.variableRenames.put(oldName, newName);
+                    result.suggestionOutcomes.add(new SuggestionOutcome("Field Rename", oldName + " \u2192 " + newName, true, null));
+                    Msg.info(this, "Renamed struct field: " + oldName + " -> " + newName);
                 } else {
-                    result.suggestionOutcomes.add(new SuggestionOutcome("Type Change", varName + " \u2192 " + newType, false, typeResult));
-                    result.errors.add("Failed to change type for variable: " + varName);
+                    result.suggestionOutcomes.add(new SuggestionOutcome("Field Rename", oldName + " \u2192 " + newName, false, "Field not found in struct"));
+                    result.errors.add("Failed to rename field: " + oldName);
+                }
+                currentChange++;
+                lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
+            }
+            
+            // 5. Apply remaining variable type changes in a single decompilation pass
+            //    with reverse-lookup from variableRenames for post-rename name keys
+            int typeCount = 0;
+            java.util.Set<String> alreadyHandledTypes = result.typeUpdates.keySet();
+            List<TypeChangeResult> batchTypeResults = applyVariableTypeChangeBatch(
+                function, program, spec.variableTypes, spec.variableRenames, alreadyHandledTypes, monitor);
+            for (TypeChangeResult tcr : batchTypeResults) {
+                if (tcr.applied) {
+                    typeCount++;
+                    result.typeUpdates.put(tcr.varName, tcr.newType);
+                    result.suggestionOutcomes.add(new SuggestionOutcome("Type Change", tcr.varName + " \u2192 " + tcr.newType, true, null));
+                    Msg.info(this, "Changed type for " + tcr.varName + " to " + tcr.newType);
+                } else {
+                    result.suggestionOutcomes.add(new SuggestionOutcome("Type Change", tcr.varName + " \u2192 " + tcr.newType, false, tcr.failureReason));
+                    result.errors.add("Failed to change type for variable: " + tcr.varName);
                 }
             }
             
@@ -1241,6 +1252,229 @@ public class FunctionRewrite {
             Msg.error(this, "Error renaming variable " + oldName, e);
             return false;
         }
+    }
+    
+    /**
+     * Result of a single rename attempt within a batch.
+     */
+    private static class RenameResult {
+        final String oldName;
+        final String newName;
+        final boolean applied;
+        final String failureReason; // null if applied
+        RenameResult(String oldName, String newName, boolean applied, String failureReason) {
+            this.oldName = oldName;
+            this.newName = newName;
+            this.applied = applied;
+            this.failureReason = failureReason;
+        }
+    }
+    
+    /**
+     * Apply all variable renames in a single decompilation pass.
+     * Decompiles once, collects all symbols, then applies renames sequentially
+     * against the same snapshot so that decompiler-temporary numbering stays stable.
+     */
+    private List<RenameResult> applyVariableRenameBatch(Function function, Program program,
+            Map<String, String> renames, TaskMonitor monitor) {
+        List<RenameResult> results = new ArrayList<>();
+        
+        // Decompile once
+        DecompileResults decompResults = decompiler.decompileFunction(function, 30, new ConsoleTaskMonitor());
+        if (decompResults == null || !decompResults.decompileCompleted()) {
+            for (Map.Entry<String, String> rename : renames.entrySet()) {
+                results.add(new RenameResult(rename.getKey(), rename.getValue(), false, "Decompile failed"));
+            }
+            return results;
+        }
+        
+        HighFunction highFunction = decompResults.getHighFunction();
+        if (highFunction == null) {
+            for (Map.Entry<String, String> rename : renames.entrySet()) {
+                results.add(new RenameResult(rename.getKey(), rename.getValue(), false, "Decompile failed"));
+            }
+            return results;
+        }
+        
+        // Collect all symbols by name into a map for O(1) lookup
+        Map<String, HighSymbol> symbolMap = new HashMap<>();
+        Iterator<HighSymbol> symbols = highFunction.getLocalSymbolMap().getSymbols();
+        while (symbols.hasNext()) {
+            HighSymbol sym = symbols.next();
+            symbolMap.put(sym.getName(), sym);
+        }
+        
+        // Check if a full commit is needed (do it once before all renames)
+        boolean committed = false;
+        
+        int tx = program.startTransaction("Batch rename variables");
+        try {
+            for (Map.Entry<String, String> rename : renames.entrySet()) {
+                if (monitor.isCancelled()) break;
+                String oldName = rename.getKey();
+                String newName = rename.getValue();
+                
+                // Skip 'this' auto-parameter
+                if ("this".equals(oldName)) {
+                    // handled separately by caller
+                    continue;
+                }
+                
+                // Skip member field names - handled separately
+                if (isMemberFieldName(oldName)) {
+                    continue;
+                }
+                
+                if (oldName.equals(newName)) {
+                    results.add(new RenameResult(oldName, newName, true, null));
+                    continue;
+                }
+                
+                HighSymbol symbol = symbolMap.get(oldName);
+                if (symbol == null) {
+                    results.add(new RenameResult(oldName, newName, false, "Variable not found in decompiler output"));
+                    continue;
+                }
+                
+                try {
+                    if (!committed) {
+                        boolean commitRequired = checkFullCommit(symbol, highFunction);
+                        if (commitRequired) {
+                            HighFunctionDBUtil.commitParamsToDatabase(highFunction, false,
+                                HighFunctionDBUtil.ReturnCommitOption.NO_COMMIT, function.getSignatureSource());
+                        }
+                        committed = true;
+                    }
+                    
+                    HighFunctionDBUtil.updateDBVariable(symbol, newName, null, SourceType.USER_DEFINED);
+                    results.add(new RenameResult(oldName, newName, true, null));
+                } catch (Exception e) {
+                    Msg.error(this, "Error renaming variable " + oldName, e);
+                    results.add(new RenameResult(oldName, newName, false, e.getMessage()));
+                }
+            }
+        } finally {
+            program.endTransaction(tx, true);
+        }
+        
+        return results;
+    }
+    
+    /**
+     * Result of a single type-change attempt within a batch.
+     */
+    private static class TypeChangeResult {
+        final String varName;
+        final String newType;
+        final boolean applied;
+        final String failureReason; // null if applied
+        TypeChangeResult(String varName, String newType, boolean applied, String failureReason) {
+            this.varName = varName;
+            this.newType = newType;
+            this.applied = applied;
+            this.failureReason = failureReason;
+        }
+    }
+    
+    /**
+     * Apply all variable type changes in a single decompilation pass.
+     * Uses reverse-lookup from variableRenames to find original names when
+     * the LLM provides post-rename names as keys.
+     */
+    private List<TypeChangeResult> applyVariableTypeChangeBatch(Function function, Program program,
+            Map<String, String> typeChanges, Map<String, String> variableRenames,
+            java.util.Set<String> alreadyHandled, TaskMonitor monitor) {
+        List<TypeChangeResult> results = new ArrayList<>();
+        
+        // Build a reverse map: newName -> oldName
+        Map<String, String> reverseRenames = new HashMap<>();
+        for (Map.Entry<String, String> entry : variableRenames.entrySet()) {
+            reverseRenames.put(entry.getValue(), entry.getKey());
+        }
+        
+        // Decompile once
+        DecompileResults decompResults = decompiler.decompileFunction(function, 30, new ConsoleTaskMonitor());
+        if (decompResults == null || !decompResults.decompileCompleted()) {
+            for (Map.Entry<String, String> tc : typeChanges.entrySet()) {
+                if (alreadyHandled.contains(tc.getKey())) continue;
+                results.add(new TypeChangeResult(tc.getKey(), tc.getValue(), false, "Decompile failed"));
+            }
+            return results;
+        }
+        
+        HighFunction highFunction = decompResults.getHighFunction();
+        if (highFunction == null) {
+            for (Map.Entry<String, String> tc : typeChanges.entrySet()) {
+                if (alreadyHandled.contains(tc.getKey())) continue;
+                results.add(new TypeChangeResult(tc.getKey(), tc.getValue(), false, "Decompile failed"));
+            }
+            return results;
+        }
+        
+        // Collect all symbols by name
+        Map<String, HighSymbol> symbolMap = new HashMap<>();
+        Iterator<HighSymbol> symbols = highFunction.getLocalSymbolMap().getSymbols();
+        while (symbols.hasNext()) {
+            HighSymbol sym = symbols.next();
+            symbolMap.put(sym.getName(), sym);
+        }
+        
+        DataTypeManager dtm = program.getDataTypeManager();
+        
+        for (Map.Entry<String, String> typeChange : typeChanges.entrySet()) {
+            if (monitor.isCancelled()) break;
+            String varName = typeChange.getKey();
+            String newType = typeChange.getValue();
+            
+            if (alreadyHandled.contains(varName)) continue;
+            
+            // Try to find the symbol by name, then by reverse-lookup of original name
+            HighSymbol symbol = symbolMap.get(varName);
+            if (symbol == null) {
+                // The LLM likely used the post-rename name; look up the original name
+                String originalName = reverseRenames.get(varName);
+                if (originalName != null) {
+                    symbol = symbolMap.get(originalName);
+                }
+            }
+            
+            if (symbol == null) {
+                results.add(new TypeChangeResult(varName, newType, false, "Variable not found"));
+                continue;
+            }
+            
+            // Only retype if current type is undefined or void*
+            DataType currentType = symbol.getDataType();
+            if (currentType != null) {
+                String currentName = currentType.getName().toLowerCase();
+                if (!currentName.contains("undefined") && !currentName.equals("pointer")) {
+                    results.add(new TypeChangeResult(varName, newType, false,
+                        "Already typed as '" + currentType.getName() + "'"));
+                    continue;
+                }
+            }
+            
+            // Resolve the data type
+            DataType dataType = resolveDataType(dtm, newType);
+            if (dataType == null) {
+                results.add(new TypeChangeResult(varName, newType, false,
+                    "Could not resolve type: " + newType));
+                continue;
+            }
+            
+            // Apply the type change
+            int tx = program.startTransaction("Change variable type: " + varName + " -> " + newType);
+            try {
+                HighFunctionDBUtil.updateDBVariable(symbol, symbol.getName(), dataType, SourceType.USER_DEFINED);
+                results.add(new TypeChangeResult(varName, newType, true, null));
+            } catch (Exception e) {
+                results.add(new TypeChangeResult(varName, newType, false, "Error: " + e.getMessage()));
+            } finally {
+                program.endTransaction(tx, true);
+            }
+        }
+        
+        return results;
     }
     
     /**
