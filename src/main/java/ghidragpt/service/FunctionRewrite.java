@@ -1878,19 +1878,30 @@ public class FunctionRewrite {
             
             SymbolTable symbolTable = program.getSymbolTable();
             
-            // Try to find by name in the global namespace
-            Iterator<Symbol> symbols = symbolTable.getSymbols(oldName);
-            while (symbols.hasNext()) {
-                Symbol symbol = symbols.next();
-                if (symbol.isGlobal()) {
-                    symbol.setName(newName, SourceType.USER_DEFINED);
-                    return true;
+            // Try multiple name variants (decompiler may add a leading underscore)
+            String[] namesToTry = oldName.startsWith("_")
+                ? new String[] { oldName, oldName.substring(1) }
+                : new String[] { oldName };
+            
+            for (String name : namesToTry) {
+                Iterator<Symbol> symbols = symbolTable.getSymbols(name);
+                while (symbols.hasNext()) {
+                    Symbol symbol = symbols.next();
+                    if (symbol.isGlobal()) {
+                        symbol.setName(newName, SourceType.USER_DEFINED);
+                        return true;
+                    }
                 }
             }
             
-            // Fallback: try to parse address from DAT_ pattern and find symbol at that address
+            // Fallback: try to parse address from DAT_ or _DAT_ pattern
+            String addrStr = null;
             if (oldName.startsWith("DAT_")) {
-                String addrStr = oldName.substring(4); // strip "DAT_"
+                addrStr = oldName.substring(4);
+            } else if (oldName.startsWith("_DAT_")) {
+                addrStr = oldName.substring(5);
+            }
+            if (addrStr != null) {
                 Address addr = program.getAddressFactory().getAddress(addrStr);
                 if (addr != null) {
                     Symbol symbol = symbolTable.getPrimarySymbol(addr);
@@ -1917,8 +1928,10 @@ public class FunctionRewrite {
         if (name == null || name.isEmpty()) {
             return false;
         }
-        return name.matches("^(DAT|FUN|cls|LAB|PTR|EXT|s|switchD|caseD|GUID|thunk_FUN|AddrTable)_[0-9a-fA-Fx]+$")
-            || name.matches("^(meth|vftable|Class)_0x[0-9a-fA-F]+$");
+        // Strip leading underscore added by the decompiler's C naming convention
+        String normalized = name.startsWith("_") ? name.substring(1) : name;
+        return normalized.matches("^(DAT|FUN|cls|LAB|PTR|EXT|s|switchD|caseD|GUID|thunk_FUN|AddrTable)_[0-9a-fA-Fx]+$")
+            || normalized.matches("^(meth|vftable|Class)_0x[0-9a-fA-F]+$");
     }
     
     /**
@@ -1930,20 +1943,34 @@ public class FunctionRewrite {
             SymbolTable symbolTable = program.getSymbolTable();
             Address addr = null;
             
-            // Find the address of this global
-            Iterator<Symbol> symbols = symbolTable.getSymbols(globalName);
-            while (symbols.hasNext()) {
-                Symbol symbol = symbols.next();
-                if (symbol.isGlobal()) {
-                    addr = symbol.getAddress();
-                    break;
+            // Try multiple name variants (decompiler may add a leading underscore)
+            String[] namesToTry = globalName.startsWith("_")
+                ? new String[] { globalName, globalName.substring(1) }
+                : new String[] { globalName };
+            
+            for (String name : namesToTry) {
+                Iterator<Symbol> symbols = symbolTable.getSymbols(name);
+                while (symbols.hasNext()) {
+                    Symbol symbol = symbols.next();
+                    if (symbol.isGlobal()) {
+                        addr = symbol.getAddress();
+                        break;
+                    }
                 }
+                if (addr != null) break;
             }
             
-            // Fallback: parse address from DAT_ pattern
-            if (addr == null && globalName.startsWith("DAT_")) {
-                String addrStr = globalName.substring(4);
-                addr = program.getAddressFactory().getAddress(addrStr);
+            // Fallback: parse address from DAT_ or _DAT_ pattern
+            if (addr == null) {
+                String addrStr = null;
+                if (globalName.startsWith("DAT_")) {
+                    addrStr = globalName.substring(4);
+                } else if (globalName.startsWith("_DAT_")) {
+                    addrStr = globalName.substring(5);
+                }
+                if (addrStr != null) {
+                    addr = program.getAddressFactory().getAddress(addrStr);
+                }
             }
             
             if (addr == null) {
