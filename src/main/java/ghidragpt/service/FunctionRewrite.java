@@ -63,6 +63,7 @@ import java.util.HashSet;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.LinkedHashMap;
+import java.util.stream.Collectors;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -1597,6 +1598,10 @@ public class FunctionRewrite {
             }
             
             if (symbol == null) {
+                Msg.warn(this, "Type change: '" + varName + "' not found. Reverse=" +
+                    reverseRenames.get(varName) + ", Forward=" + variableRenames.get(varName) +
+                    ". SymbolMap keys (first 20): " + symbolMap.keySet().stream()
+                    .limit(20).collect(java.util.stream.Collectors.joining(", ")));
                 results.add(new TypeChangeResult(varName, newType, false, "Variable not found"));
                 continue;
             }
@@ -1662,6 +1667,10 @@ public class FunctionRewrite {
                 DataType paramType = param.getDataType();
                 if (paramType instanceof Pointer) {
                     DataType baseType = ((Pointer) paramType).getDataType();
+                    // Unwrap typedefs (e.g. OOAnalyzer classes)
+                    while (baseType instanceof ghidra.program.model.data.TypeDef) {
+                        baseType = ((ghidra.program.model.data.TypeDef) baseType).getBaseDataType();
+                    }
                     if (baseType instanceof Structure) {
                         topStruct = (Structure) baseType;
                         break;
@@ -1670,6 +1679,7 @@ public class FunctionRewrite {
             }
             
             if (topStruct == null) {
+                Msg.warn(this, "applyMemberFieldRename: no pointer-to-struct param found for " + oldName);
                 return false;
             }
             
