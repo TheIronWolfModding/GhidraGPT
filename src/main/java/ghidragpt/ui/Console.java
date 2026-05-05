@@ -40,7 +40,7 @@ public class Console extends JPanel {
         textPane.setEditable(false);
         
         // Use a big, clear, readable font
-        Font consoleFont = new Font("Arial", Font.PLAIN, 14);
+        Font consoleFont = new Font("Consolas", Font.PLAIN, 14);
         
         textPane.setFont(consoleFont);
         textPane.setBackground(new Color(24, 24, 24)); // Darker, more professional background
@@ -248,12 +248,12 @@ public class Console extends JPanel {
             // Create a visually appealing header with proper padding
             String headerTitle = operation + " Started";
             String header = "\n╔" + "═".repeat(58) + "╗\n" +
-                           "║ ⚡ " + centerText(headerTitle, 52) + " ║\n" +
+                           "║" + centerText(headerTitle, 57) + " ║\n" +
                            "╠" + "═".repeat(58) + "╣\n" +
-                           "║ ► Function:  " + padRight(functionName, 43) + " ║\n" +
-                           "║ ◆ Provider:  " + padRight(provider, 43) + " ║\n" +
-                           "║ ● Model:     " + padRight(model, 43) + " ║\n" +
-                           "║ ■ Size:      " + padRight(promptLength + " chars", 43) + " ║\n" +
+                           "║ * Function:  " + padRight(functionName, 43) + " ║\n" +
+                           "║ * Provider:  " + padRight(provider, 43) + " ║\n" +
+                           "║ * Model:     " + padRight(model, 43) + " ║\n" +
+                           "║ * Size:      " + padRight(promptLength + " chars", 43) + " ║\n" +
                            "╚" + "═".repeat(58) + "╝\n";
             
             document.insertString(document.getLength(), header, textPane.getStyle("header"));
