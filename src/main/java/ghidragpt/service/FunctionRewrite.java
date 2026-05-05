@@ -15,6 +15,7 @@ import ghidra.app.decompiler.DecompileResults;
 import ghidra.app.decompiler.ClangTokenGroup;
 import ghidra.app.decompiler.ClangNode;
 import ghidra.app.decompiler.ClangToken;
+import ghidra.app.decompiler.ClangBreak;
 import ghidra.util.exception.DuplicateNameException;
 import ghidra.util.exception.InvalidInputException;
 import ghidra.util.task.ConsoleTaskMonitor;
@@ -378,7 +379,8 @@ public class FunctionRewrite {
             while (symbols.hasNext()) {
                 HighSymbol symbol = symbols.next();
                 String symbolName = symbol.getName();
-                if (symbolName != null && !symbolName.isEmpty() && seenNames.add(symbolName)) {
+                if (symbolName != null && !symbolName.isEmpty()
+                        && !symbolName.equals("this") && seenNames.add(symbolName)) {
                     analyses.add(new VariableAnalysis(symbolName, symbol.getDataType(), symbol.isParameter()));
                 }
             }
@@ -496,8 +498,8 @@ public class FunctionRewrite {
             for (ClangToken token : allTokens) {
                 String text = token.toString();
                 
-                // Check for line breaks
-                if (text.contains("\n")) {
+                // Check for line breaks (ClangBreak tokens or embedded newlines)
+                if (token instanceof ClangBreak || text.contains("\n")) {
                     // Emit current line with address annotation
                     String lineText = currentLine.toString();
                     if (!lineText.trim().isEmpty()) {
@@ -576,17 +578,24 @@ public class FunctionRewrite {
         StringBuilder undefinedTypes = new StringBuilder();
         
         for (VariableAnalysis varAnalysis : functionAnalysis.getVariables()) {
-            String varDesc = "- " + varAnalysis.getName() + " (" + varAnalysis.getTypeDisplayName() + ")";
+            String name = varAnalysis.getName();
+            
+            // Skip Windows SEH frame variables -- not real function logic
+            if (name.equals("unaff_FS_OFFSET") || name.startsWith("puStack_") && varAnalysis.getTypeDisplayName().contains("undefined1")) {
+                continue;
+            }
+            
+            String varDesc = "- " + name + " (" + varAnalysis.getTypeDisplayName() + ")";
             
             if (varAnalysis.isParameter()) {
                 parameters.append(varDesc).append("\n");
-            } else if (varAnalysis.getName().matches("^[iufl]Var\\d+$")) {
+            } else if (name.matches("^[iufl]Var\\d+$")) {
                 // Decompiler temporaries like iVar1, uVar2, etc.
                 tempVars.append(varDesc).append(" - decompiler temporary\n");
-            } else if (varAnalysis.getName().matches("^[ui]Stack_\\d+$|^local_\\d+$")) {
+            } else if (name.matches("^[ui]Stack_\\d+$|^local_\\d+$")) {
                 // Stack variables like uStack_20, local_38, etc.
                 stackVars.append(varDesc).append(" - stack variable\n");
-            } else if (varAnalysis.getName().matches("^[A-Z][a-zA-Z0-9_]*$") && varAnalysis.getName().length() > 3) {
+            } else if (name.matches("^[A-Z][a-zA-Z0-9_]*$") && name.length() > 3) {
                 // Variables that already have reasonable names (like ControlPc, FunctionEntry)
                 wellNamedVars.append(varDesc).append(" - already well-named\n");
             } else {
@@ -715,7 +724,7 @@ public class FunctionRewrite {
         
         prompt.append("Notes:\n");
         prompt.append("- Keep well-named variables like 'ControlPc' and 'FunctionEntry' unless you have significantly better names.\n");
-        prompt.append("- For comments, use the exact hex addresses shown in the /* addr */ annotations of the decompiled code\n");
+        prompt.append("- For comments, use ONLY addresses from /* XXXXXXXX */ annotations at the start of code lines -- NEVER use addresses of referenced data, labels, or vtables\n");
         prompt.append("- Only include fields that need changes - omit empty objects\n");
         prompt.append("- Function prototype should be a complete C function signature\n");
         prompt.append("- Do NOT rename LAB_*, vftable_*, switchD_*, or caseD_* labels -- they are code references, not variables\n");
