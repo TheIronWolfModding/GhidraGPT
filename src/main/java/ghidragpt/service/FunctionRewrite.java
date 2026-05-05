@@ -43,6 +43,7 @@ import ghidragpt.service.APIClient;
 import ghidragpt.utils.PromptBuilder;
 import ghidragpt.utils.ResponseParser;
 import ghidragpt.utils.GhidraFunctionModifier;
+import ghidragpt.utils.SuggestionApplier;
 import ghidra.util.task.TaskMonitor;
 import ghidra.util.Msg;
 import ghidra.program.model.address.Address;
