@@ -26,6 +26,8 @@ public class ConfigurationManager {
     private static final String APPLY_FUNCTION_PROTOTYPE_PROPERTY = "rewrite.apply.function.prototype";
     private static final String CUSTOM_INSTRUCTIONS_PROPERTY = "rewrite.custom.instructions";
     private static final String PRINT_REWRITE_SUMMARY_PROPERTY = "rewrite.print.summary";
+    private static final String DEBUG_MODE_PROPERTY = "rewrite.debug.mode";
+    private static final String DEBUG_PATH_PROPERTY = "rewrite.debug.path";
     
     // XOR key for API key obfuscation, not super secure but still better than plaintext
     private static final String XOR_KEY = "GhidraGPT_Sec3@Key_9f4e7a2b#8c1d6f0a@2025!";
@@ -268,6 +270,22 @@ public class ConfigurationManager {
     
     public void setPrintRewriteSummary(boolean print) {
         properties.setProperty(PRINT_REWRITE_SUMMARY_PROPERTY, String.valueOf(print));
+    }
+    
+    public String getDebugMode() {
+        return properties.getProperty(DEBUG_MODE_PROPERTY, "off");
+    }
+    
+    public void setDebugMode(String mode) {
+        properties.setProperty(DEBUG_MODE_PROPERTY, mode != null ? mode : "off");
+    }
+    
+    public String getDebugPath() {
+        return properties.getProperty(DEBUG_PATH_PROPERTY, "");
+    }
+    
+    public void setDebugPath(String path) {
+        properties.setProperty(DEBUG_PATH_PROPERTY, path != null ? path : "");
     }
     
     /**

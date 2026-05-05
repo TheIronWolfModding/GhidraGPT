@@ -5,6 +5,7 @@ import ghidragpt.config.ConfigurationManager;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionListener;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -29,6 +30,10 @@ public class ConfigurationPanel extends JPanel {
     private final JCheckBox applyFunctionRenameCheckbox;
     private final JCheckBox applyFunctionPrototypeCheckbox;
     private final JCheckBox printRewriteSummaryCheckbox;
+    private final JRadioButton debugOffRadio;
+    private final JRadioButton debugSaveRadio;
+    private final JRadioButton debugLoadRadio;
+    private final JTextField debugPathField;
     private final JTextArea customInstructionsArea;
     
     public ConfigurationPanel(APIClient apiClient) {
@@ -145,8 +150,37 @@ public class ConfigurationPanel extends JPanel {
         gbc.insets = new Insets(2, 5, 5, 5);
         add(printRewriteSummaryCheckbox, gbc);
         
-        // Custom Prompt Instructions
+        // Debug mode radio buttons
+        debugOffRadio = new JRadioButton("Off");
+        debugSaveRadio = new JRadioButton("Save");
+        debugLoadRadio = new JRadioButton("Load");
+        debugOffRadio.setSelected(true);
+        ButtonGroup debugGroup = new ButtonGroup();
+        debugGroup.add(debugOffRadio);
+        debugGroup.add(debugSaveRadio);
+        debugGroup.add(debugLoadRadio);
+        
+        debugPathField = new JTextField(15);
+        debugPathField.setToolTipText("Folder for debug save/load files (e.g. e:\\\\temp)");
+        debugPathField.setEnabled(false);
+        
+        ActionListener debugRadioListener = e -> debugPathField.setEnabled(!debugOffRadio.isSelected());
+        debugOffRadio.addActionListener(debugRadioListener);
+        debugSaveRadio.addActionListener(debugRadioListener);
+        debugLoadRadio.addActionListener(debugRadioListener);
+        
+        JPanel debugPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        debugPanel.add(new JLabel("Debug:"));
+        debugPanel.add(debugOffRadio);
+        debugPanel.add(debugSaveRadio);
+        debugPanel.add(debugLoadRadio);
+        debugPanel.add(debugPathField);
         gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
+        gbc.insets = new Insets(2, 5, 5, 5);
+        add(debugPanel, gbc);
+        
+        // Custom Prompt Instructions
+        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
         add(new JLabel("Custom Prompt Instructions:"), gbc);
         
@@ -156,7 +190,7 @@ public class ConfigurationPanel extends JPanel {
         customInstructionsArea.setToolTipText("Extra instructions appended to the LLM prompt (e.g. 'Always use camelCase names')");
         JScrollPane scrollPane = new JScrollPane(customInstructionsArea);
         scrollPane.setPreferredSize(new Dimension(300, 60));
-        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 5, 5, 5);
         add(scrollPane, gbc);
@@ -175,7 +209,7 @@ public class ConfigurationPanel extends JPanel {
         buttonPanel.add(saveButton);
         
         // Add centered button panel
-        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.CENTER;
         gbc.insets = new Insets(10, 5, 5, 5);
@@ -185,7 +219,7 @@ public class ConfigurationPanel extends JPanel {
         // Status label
         statusLabel = new JLabel("Not configured");
         statusLabel.setForeground(Color.RED);
-        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.CENTER;
         gbc.insets = new Insets(5, 5, 10, 5);
@@ -195,7 +229,7 @@ public class ConfigurationPanel extends JPanel {
         // Vertical spacer to push everything to the top when panel height increases
         JPanel spacer = new JPanel();
         spacer.setOpaque(false);
-        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.weighty = 1.0; // Take up all extra vertical space
         gbc.weightx = 1.0; // Take up all extra horizontal space
@@ -222,6 +256,12 @@ public class ConfigurationPanel extends JPanel {
         applyFunctionRenameCheckbox.setSelected(configManager.isApplyFunctionRename());
         applyFunctionPrototypeCheckbox.setSelected(configManager.isApplyFunctionPrototype());
         printRewriteSummaryCheckbox.setSelected(configManager.isPrintRewriteSummary());
+        String debugMode = configManager.getDebugMode();
+        debugOffRadio.setSelected("off".equals(debugMode));
+        debugSaveRadio.setSelected("save".equals(debugMode));
+        debugLoadRadio.setSelected("load".equals(debugMode));
+        debugPathField.setText(configManager.getDebugPath());
+        debugPathField.setEnabled(!"off".equals(debugMode));
         customInstructionsArea.setText(configManager.getCustomInstructions());
         
         // Update visibility of custom URL field
@@ -331,6 +371,8 @@ public class ConfigurationPanel extends JPanel {
         configManager.setApplyFunctionRename(applyFunctionRenameCheckbox.isSelected());
         configManager.setApplyFunctionPrototype(applyFunctionPrototypeCheckbox.isSelected());
         configManager.setPrintRewriteSummary(printRewriteSummaryCheckbox.isSelected());
+        configManager.setDebugMode(debugSaveRadio.isSelected() ? "save" : debugLoadRadio.isSelected() ? "load" : "off");
+        configManager.setDebugPath(debugPathField.getText().trim());
         configManager.setCustomInstructions(customInstructionsArea.getText());
         configManager.saveConfiguration();
         

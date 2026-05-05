@@ -62,6 +62,11 @@ import java.util.HashSet;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.LinkedHashMap;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 /**
  * Comprehensive function rewrite service that combines function and variable renaming
@@ -212,6 +217,33 @@ public class FunctionRewrite {
                 return result;
             }
             
+            // Debug save: write prompt and response to files
+            if (configManager != null && "save".equals(configManager.getDebugMode())) {
+                String debugPath = configManager.getDebugPath();
+                if (debugPath != null && !debugPath.isEmpty()) {
+                    String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+                    String debugPrefix = debugPath + File.separator + function.getName() + "-" + timestamp;
+                    try {
+                        File promptFile = new File(debugPrefix + "-prompt");
+                        promptFile.getParentFile().mkdirs();
+                        try (FileWriter fw = new FileWriter(promptFile)) {
+                            fw.write(enhancementPrompt);
+                        }
+                        File responseFile = new File(debugPrefix + "-response");
+                        try (FileWriter fw = new FileWriter(responseFile)) {
+                            fw.write(aiResponse);
+                        }
+                        if (console != null) {
+                            console.appendInfo("[Debug] Saved prompt and response to: " + debugPrefix + "-*");
+                        }
+                    } catch (IOException ioEx) {
+                        if (console != null) {
+                            console.appendInfo("[Debug] Failed to save debug files: " + ioEx.getMessage());
+                        }
+                    }
+                }
+            }
+            
             // Parsing model response for comprehensive rewrite specification
             ComprehensiveRewriteSpec rewriteSpec = parseComprehensiveRewriteResponse(aiResponse);
             
@@ -318,13 +350,16 @@ public class FunctionRewrite {
         
         // Get function parameters
         Parameter[] parameters = function.getParameters();
+        Set<String> seenNames = new HashSet<>();
         for (Parameter param : parameters) {
+            seenNames.add(param.getName());
             analyses.add(new VariableAnalysis(param.getName(), param.getDataType(), true));
         }
         
         // Get local variables
         Variable[] localVars = function.getLocalVariables();
         for (Variable var : localVars) {
+            seenNames.add(var.getName());
             analyses.add(new VariableAnalysis(var.getName(), var.getDataType(), false));
         }
         
@@ -336,8 +371,8 @@ public class FunctionRewrite {
                 String symbolName = symbol.getName();
                 
                 // Check if we already have this variable
-                boolean alreadyExists = analyses.stream().anyMatch(va -> va.getName().equals(symbolName));
-                if (!alreadyExists) {
+                if (!seenNames.contains(symbolName)) {
+                    seenNames.add(symbolName);
                     analyses.add(new VariableAnalysis(symbolName, symbol.getDataType(), symbol.isParameter()));
                 }
             }
@@ -371,6 +406,11 @@ public class FunctionRewrite {
             GlobalVarInfo info = new GlobalVarInfo();
             info.name = name;
             info.address = symbol.getStorage().getMinAddress();
+
+            // Skip code labels and vtable references -- not renameable globals
+            if (name.startsWith("LAB_") || name.startsWith("vftable_") || name.startsWith("switchD_") || name.startsWith("caseD_")) {
+                continue;
+            }
 
             HighVariable highVar = symbol.getHighVariable();
             if (highVar != null && highVar.getDataType() != null) {
@@ -656,6 +696,8 @@ public class FunctionRewrite {
         prompt.append("- For comments, use the exact hex addresses shown in the /* addr */ annotations of the decompiled code\n");
         prompt.append("- Only include fields that need changes - omit empty objects\n");
         prompt.append("- Function prototype should be a complete C function signature\n");
+        prompt.append("- Do NOT rename LAB_*, vftable_*, switchD_*, or caseD_* labels -- they are code references, not variables\n");
+        prompt.append("- If the function is a constructor that only initializes/zeroes fields, field names are speculative -- prefer generic names like m_field84, m_field88 over guessing semantics\n");
         
         return prompt.toString();
     }
