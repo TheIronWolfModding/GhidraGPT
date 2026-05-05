@@ -1149,6 +1149,16 @@ public class FunctionRewrite {
                 if (oldName.equals(newName)) {
                     continue;
                 }
+                // Skip if old name already has g_ prefix (user convention)
+                if (oldName.startsWith("g_")) {
+                    result.suggestionOutcomes.add(new SuggestionOutcome(
+                        "Global Rename", oldName + " \u2192 " + newName, false, "Already has g_ prefix"));
+                    continue;
+                }
+                // Enforce g_ prefix on new name
+                if (!newName.startsWith("g_")) {
+                    newName = "g_" + newName;
+                }
                 if (!isDefaultGlobalName(oldName)) {
                     result.suggestionOutcomes.add(new SuggestionOutcome(
                         "Global Rename", oldName + " \u2192 " + newName, false, "Already user-renamed"));
