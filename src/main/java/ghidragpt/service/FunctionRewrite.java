@@ -1259,6 +1259,7 @@ public class FunctionRewrite {
                 if (outcome.applied) continue;
                 boolean skipped = outcome.reason != null &&
                     (outcome.reason.startsWith("Already typed as") ||
+                     outcome.reason.startsWith("Already has") ||
                      outcome.reason.equals("Already user-renamed"));
                 String tag = skipped ? "SKIP" : "FAIL";
                 String text = "[" + tag + "] [" + outcome.category + "] " + outcome.suggestion;
@@ -1497,6 +1498,12 @@ public class FunctionRewrite {
                         committed = true;
                     }
                     
+                    // Check if newName already exists as a symbol (avoid DuplicateNameException)
+                    if (symbolMap.containsKey(newName)) {
+                        results.add(new RenameResult(oldName, newName, false,
+                            "Name '" + newName + "' already exists in function scope"));
+                        continue;
+                    }
                     HighFunctionDBUtil.updateDBVariable(symbol, newName, null, SourceType.USER_DEFINED);
                     results.add(new RenameResult(oldName, newName, true, null));
                 } catch (Exception e) {
