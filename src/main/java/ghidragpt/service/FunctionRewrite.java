@@ -142,70 +142,91 @@ public class FunctionRewrite {
             monitor.setMessage("Getting model suggestions for comprehensive function rewrite...");
             monitor.setProgress(30);
             
-            // Get model response with streaming
+            // Get model response -- either from file (debug load) or from LLM
             String aiResponse;
             long startTime = System.currentTimeMillis();
-            try {
-                APIClient.GPTProvider provider = apiClient.getProvider();
-                
-                // Print analysis header using console
-                if (console != null) {
-                    console.printAnalysisHeader("✨ Comprehensive Function Rewrite", function.getName(), 
-                        provider.toString(), apiClient.getModel(), enhancementPrompt.length());
-                }
-                
-                final StringBuilder streamBuffer = new StringBuilder();
-                
-                aiResponse = apiClient.sendRequest(enhancementPrompt, new APIClient.StreamCallback() {
-                    private boolean isFirstResponse = true;
-                    
-                    @Override
-                    public void onPartialResponse(String partialContent) {
-                        streamBuffer.append(partialContent);
-                        
-                        // Print header on first response
-                        if (isFirstResponse) {
-                            if (console != null) {
-                                console.printStreamHeader();
-                            }
-                            isFirstResponse = false;
-                        }
-                        
-                        // Stream response directly to console
-                        if (console != null) {
-                            console.appendStreamingText(partialContent);
-                        }
-                        
-                        // Update monitor with simple streaming indicator
-                        monitor.setMessage("Streaming model response...");
-                    }
-                    
-                    @Override
-                    public void onComplete(String fullContent) {
-                        // Don't print completion message here - wait until JSON is successfully parsed
-                        monitor.setMessage("Processing model suggestions...");
-                        monitor.setProgress(70);
-                    }
-                    
-                    @Override
-                    public void onError(Exception error) {
-                        if (console != null) {
-                            console.printStreamError("model analysis", error.getMessage());
-                        }
-                    }
-                });
-            } catch (java.net.SocketTimeoutException e) {
-                throw new RuntimeException("Request timed out. Function may be too complex. Consider breaking it down into smaller functions.", e);
-            } catch (java.io.IOException e) {
-                // Thread interrupt during streaming causes IOException - treat as cancellation
-                if (monitor.isCancelled()) {
-                    result.message = "Operation cancelled during LLM response.";
+            boolean isDebugLoad = configManager != null && "load".equals(configManager.getDebugMode());
+            
+            if (isDebugLoad) {
+                // Load response from file instead of calling LLM
+                String debugPath = configManager.getDebugPath();
+                if (debugPath == null || debugPath.trim().isEmpty()) {
+                    result.errors.add("Debug Load mode requires a response file path");
                     return result;
                 }
-                if (e.getMessage() != null && e.getMessage().contains("timeout")) {
-                    throw new RuntimeException("Network timeout occurred. Check your internet connection or try again later.", e);
+                File responseFile = new File(debugPath.trim());
+                if (!responseFile.exists()) {
+                    result.errors.add("Debug response file not found: " + debugPath);
+                    return result;
                 }
-                throw e;
+                aiResponse = new String(java.nio.file.Files.readAllBytes(responseFile.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+                if (console != null) {
+                    console.appendInfo("[Debug] Loaded response from: " + debugPath + " (" + aiResponse.length() + " chars)");
+                }
+            } else {
+                // Normal LLM call
+                try {
+                    APIClient.GPTProvider provider = apiClient.getProvider();
+                    
+                    // Print analysis header using console
+                    if (console != null) {
+                        console.printAnalysisHeader("Comprehensive Function Rewrite", function.getName(), 
+                            provider.toString(), apiClient.getModel(), enhancementPrompt.length());
+                    }
+                    
+                    final StringBuilder streamBuffer = new StringBuilder();
+                    
+                    aiResponse = apiClient.sendRequest(enhancementPrompt, new APIClient.StreamCallback() {
+                        private boolean isFirstResponse = true;
+                        
+                        @Override
+                        public void onPartialResponse(String partialContent) {
+                            streamBuffer.append(partialContent);
+                            
+                            // Print header on first response
+                            if (isFirstResponse) {
+                                if (console != null) {
+                                    console.printStreamHeader();
+                                }
+                                isFirstResponse = false;
+                            }
+                            
+                            // Stream response directly to console
+                            if (console != null) {
+                                console.appendStreamingText(partialContent);
+                            }
+                            
+                            // Update monitor with simple streaming indicator
+                            monitor.setMessage("Streaming model response...");
+                        }
+                        
+                        @Override
+                        public void onComplete(String fullContent) {
+                            // Don't print completion message here - wait until JSON is successfully parsed
+                            monitor.setMessage("Processing model suggestions...");
+                            monitor.setProgress(70);
+                        }
+                        
+                        @Override
+                        public void onError(Exception error) {
+                            if (console != null) {
+                                console.printStreamError("model analysis", error.getMessage());
+                            }
+                        }
+                    });
+                } catch (java.net.SocketTimeoutException e) {
+                    throw new RuntimeException("Request timed out. Function may be too complex. Consider breaking it down into smaller functions.", e);
+                } catch (java.io.IOException e) {
+                    // Thread interrupt during streaming causes IOException - treat as cancellation
+                    if (monitor.isCancelled()) {
+                        result.message = "Operation cancelled during LLM response.";
+                        return result;
+                    }
+                    if (e.getMessage() != null && e.getMessage().contains("timeout")) {
+                        throw new RuntimeException("Network timeout occurred. Check your internet connection or try again later.", e);
+                    }
+                    throw e;
+                }
             }
             
             monitor.setProgress(70);
@@ -347,33 +368,34 @@ public class FunctionRewrite {
      */
     private List<VariableAnalysis> extractVariableAnalyses(Function function, HighFunction highFunction) {
         List<VariableAnalysis> analyses = new ArrayList<>();
-        
-        // Get function parameters
-        Parameter[] parameters = function.getParameters();
         Set<String> seenNames = new HashSet<>();
-        for (Parameter param : parameters) {
-            seenNames.add(param.getName());
-            analyses.add(new VariableAnalysis(param.getName(), param.getDataType(), true));
-        }
         
-        // Get local variables
-        Variable[] localVars = function.getLocalVariables();
-        for (Variable var : localVars) {
-            seenNames.add(var.getName());
-            analyses.add(new VariableAnalysis(var.getName(), var.getDataType(), false));
-        }
-        
-        // Add any additional variables from HighFunction if available
+        // Prefer HighFunction symbols -- these are what the decompiler actually uses
+        // and what we can rename/retype. Listing DB variables may include phantom
+        // stack slots the decompiler optimized away.
         if (highFunction != null) {
             Iterator<HighSymbol> symbols = highFunction.getLocalSymbolMap().getSymbols();
             while (symbols.hasNext()) {
                 HighSymbol symbol = symbols.next();
                 String symbolName = symbol.getName();
-                
-                // Check if we already have this variable
-                if (!seenNames.contains(symbolName)) {
-                    seenNames.add(symbolName);
+                if (symbolName != null && !symbolName.isEmpty() && seenNames.add(symbolName)) {
                     analyses.add(new VariableAnalysis(symbolName, symbol.getDataType(), symbol.isParameter()));
+                }
+            }
+        }
+        
+        // Fall back to listing DB variables only if HighFunction is unavailable
+        if (highFunction == null) {
+            Parameter[] parameters = function.getParameters();
+            for (Parameter param : parameters) {
+                if (seenNames.add(param.getName())) {
+                    analyses.add(new VariableAnalysis(param.getName(), param.getDataType(), true));
+                }
+            }
+            Variable[] localVars = function.getLocalVariables();
+            for (Variable var : localVars) {
+                if (seenNames.add(var.getName())) {
+                    analyses.add(new VariableAnalysis(var.getName(), var.getDataType(), false));
                 }
             }
         }

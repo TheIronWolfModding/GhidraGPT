@@ -153,7 +153,7 @@ public class ConfigurationPanel extends JPanel {
         // Debug mode radio buttons
         debugOffRadio = new JRadioButton("Off");
         debugSaveRadio = new JRadioButton("Save");
-        debugLoadRadio = new JRadioButton("Load");
+        debugLoadRadio = new JRadioButton("Load Response");
         debugOffRadio.setSelected(true);
         ButtonGroup debugGroup = new ButtonGroup();
         debugGroup.add(debugOffRadio);
