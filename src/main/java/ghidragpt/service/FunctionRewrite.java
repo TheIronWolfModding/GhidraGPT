@@ -52,6 +52,9 @@ import ghidragpt.config.ConfigurationManager;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 
 import java.util.Map;
 import java.util.HashMap;
@@ -792,55 +795,60 @@ public class FunctionRewrite {
     }
     
     /**
-     * Parse JSON response using Ghidra's built-in Jackson ObjectMapper
+     * Parse JSON response using Jackson streaming API (first-wins for duplicate keys).
+     * LLMs sometimes emit duplicate keys where the first occurrence has meaningful names
+     * and later duplicates have generic filler names (e.g. doubleBuffer83). We keep the first.
      */
     private ComprehensiveRewriteSpec parseSimpleJson(String jsonStr) {
         ComprehensiveRewriteSpec spec = new ComprehensiveRewriteSpec();
 
         try {
-            JsonNode rootNode = objectMapper.readTree(jsonStr);
-
-            // Extract function_name
-            if (rootNode.has("function_name")) {
-                spec.functionName = rootNode.get("function_name").asText();
+            JsonFactory factory = objectMapper.getFactory();
+            try (JsonParser parser = factory.createParser(jsonStr)) {
+                if (parser.nextToken() != JsonToken.START_OBJECT) {
+                    throw new Exception("Expected JSON object");
+                }
+                while (parser.nextToken() != JsonToken.END_OBJECT) {
+                    String fieldName = parser.getCurrentName();
+                    parser.nextToken(); // move to value
+                    
+                    switch (fieldName) {
+                        case "function_name":
+                            if (spec.functionName == null) spec.functionName = parser.getValueAsString();
+                            else skipValue(parser);
+                            break;
+                        case "function_prototype":
+                            if (spec.functionPrototype == null) spec.functionPrototype = parser.getValueAsString();
+                            else skipValue(parser);
+                            break;
+                        case "variable_renames":
+                            parseJsonObjectFirstWins(parser, spec.variableRenames);
+                            break;
+                        case "variable_types":
+                            parseJsonObjectFirstWins(parser, spec.variableTypes);
+                            break;
+                        case "comments":
+                            parseJsonObjectFirstWins(parser, spec.comments);
+                            break;
+                        case "global_renames":
+                            parseJsonObjectFirstWins(parser, spec.globalRenames);
+                            break;
+                        case "global_types":
+                            parseJsonObjectFirstWins(parser, spec.globalTypes);
+                            break;
+                        default:
+                            skipValue(parser);
+                            break;
+                    }
+                }
             }
-
-            // Extract function_prototype
-            if (rootNode.has("function_prototype")) {
-                spec.functionPrototype = rootNode.get("function_prototype").asText();
-            }
-
-            // Extract variable_renames object
-            if (rootNode.has("variable_renames")) {
-                spec.variableRenames = parseJsonObject(rootNode.get("variable_renames"));
-            }
-
-            // Extract variable_types object
-            if (rootNode.has("variable_types")) {
-                spec.variableTypes = parseJsonObject(rootNode.get("variable_types"));
-            }
-
+            
             // Normalize keys: strip "this->" prefix so struct field refs route to field handlers
             spec.variableRenames = stripThisPrefix(spec.variableRenames);
             spec.variableTypes = stripThisPrefix(spec.variableTypes);
 
-            // Extract comments object
-            if (rootNode.has("comments")) {
-                spec.comments = parseJsonObject(rootNode.get("comments"));
-            }
-
-            // Extract global_renames object
-            if (rootNode.has("global_renames")) {
-                spec.globalRenames = parseJsonObject(rootNode.get("global_renames"));
-            }
-
-            // Extract global_types object
-            if (rootNode.has("global_types")) {
-                spec.globalTypes = parseJsonObject(rootNode.get("global_types"));
-            }
-
         } catch (Exception e) {
-            Msg.error(this, "Failed to parse JSON response with ObjectMapper: " + e.getMessage());
+            Msg.error(this, "Failed to parse JSON response: " + e.getMessage());
             // Fallback to text parsing
             EnhancementSuggestions fallback = parseEnhancementResponse(jsonStr);
             spec.functionName = fallback.functionName;
@@ -852,20 +860,28 @@ public class FunctionRewrite {
     }
     
     /**
-     * Parse a JSON object field using Jackson
+     * Parse a JSON object using streaming API with first-wins duplicate key handling.
+     * If a key appears multiple times, only the first value is kept.
      */
-    private Map<String, String> parseJsonObject(JsonNode jsonNode) {
-        Map<String, String> result = new HashMap<>();
-        
-        if (jsonNode != null && jsonNode.isObject()) {
-            Iterator<Map.Entry<String, JsonNode>> fields = jsonNode.fields();
-            while (fields.hasNext()) {
-                Map.Entry<String, JsonNode> field = fields.next();
-                result.put(field.getKey(), field.getValue().asText());
-            }
+    private void parseJsonObjectFirstWins(JsonParser parser, Map<String, String> target) throws Exception {
+        if (parser.currentToken() != JsonToken.START_OBJECT) return;
+        while (parser.nextToken() != JsonToken.END_OBJECT) {
+            String key = parser.getCurrentName();
+            parser.nextToken();
+            String value = parser.getValueAsString();
+            target.putIfAbsent(key, value);
         }
-        
-        return result;
+    }
+    
+    /**
+     * Skip a JSON value (object, array, or scalar) in the streaming parser.
+     */
+    private void skipValue(JsonParser parser) throws Exception {
+        JsonToken token = parser.currentToken();
+        if (token == JsonToken.START_OBJECT || token == JsonToken.START_ARRAY) {
+            parser.skipChildren();
+        }
+        // scalars are already consumed
     }
     
     /**
@@ -1260,6 +1276,9 @@ public class FunctionRewrite {
                 boolean skipped = outcome.reason != null &&
                     (outcome.reason.startsWith("Already typed as") ||
                      outcome.reason.startsWith("Already has") ||
+                     outcome.reason.startsWith("Duplicate target name") ||
+                     outcome.reason.startsWith("Name '") ||
+                     outcome.reason.equals("Variable not found") ||
                      outcome.reason.equals("Already user-renamed"));
                 String tag = skipped ? "SKIP" : "FAIL";
                 String text = "[" + tag + "] [" + outcome.category + "] " + outcome.suggestion;
