@@ -56,6 +56,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.LinkedHashMap;
@@ -743,6 +745,10 @@ public class FunctionRewrite {
                 spec.variableTypes = parseJsonObject(rootNode.get("variable_types"));
             }
 
+            // Normalize keys: strip "this->" prefix so struct field refs route to field handlers
+            spec.variableRenames = stripThisPrefix(spec.variableRenames);
+            spec.variableTypes = stripThisPrefix(spec.variableTypes);
+
             // Extract comments object
             if (rootNode.has("comments")) {
                 spec.comments = parseJsonObject(rootNode.get("comments"));
@@ -785,6 +791,22 @@ public class FunctionRewrite {
         }
         
         return result;
+    }
+    
+    /**
+     * Strip "this->" prefix from map keys so struct field references
+     * (e.g. "this->field_0x138") are normalized to bare field names ("field_0x138").
+     */
+    private Map<String, String> stripThisPrefix(Map<String, String> map) {
+        Map<String, String> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : map.entrySet()) {
+            String key = entry.getKey();
+            if (key.startsWith("this->")) {
+                key = key.substring(6);
+            }
+            normalized.put(key, entry.getValue());
+        }
+        return normalized;
     }
     
     /**
@@ -1307,9 +1329,24 @@ public class FunctionRewrite {
         // Check if a full commit is needed (do it once before all renames)
         boolean committed = false;
         
+        // Deduplicate rename targets: if multiple variables map to the same new name, keep only the first
+        Set<String> usedTargetNames = new HashSet<>();
+        Map<String, String> deduplicatedRenames = new LinkedHashMap<>();
+        for (Map.Entry<String, String> rename : renames.entrySet()) {
+            String oldName = rename.getKey();
+            String newName = rename.getValue();
+            if (usedTargetNames.contains(newName)) {
+                results.add(new RenameResult(oldName, newName, false,
+                    "Duplicate target name '" + newName + "' already used by another rename"));
+            } else {
+                usedTargetNames.add(newName);
+                deduplicatedRenames.put(oldName, newName);
+            }
+        }
+        
         int tx = program.startTransaction("Batch rename variables");
         try {
-            for (Map.Entry<String, String> rename : renames.entrySet()) {
+            for (Map.Entry<String, String> rename : deduplicatedRenames.entrySet()) {
                 if (monitor.isCancelled()) break;
                 String oldName = rename.getKey();
                 String newName = rename.getValue();
@@ -1428,13 +1465,21 @@ public class FunctionRewrite {
             
             if (alreadyHandled.contains(varName)) continue;
             
-            // Try to find the symbol by name, then by reverse-lookup of original name
+            // Try to find the symbol by name, then by reverse-lookup of original name,
+            // then by forward-lookup (LLM used old name as key, variable was already renamed)
             HighSymbol symbol = symbolMap.get(varName);
             if (symbol == null) {
                 // The LLM likely used the post-rename name; look up the original name
                 String originalName = reverseRenames.get(varName);
                 if (originalName != null) {
                     symbol = symbolMap.get(originalName);
+                }
+            }
+            if (symbol == null) {
+                // The LLM used the old (pre-rename) name as key; look up by the new name
+                String renamedTo = variableRenames.get(varName);
+                if (renamedTo != null) {
+                    symbol = symbolMap.get(renamedTo);
                 }
             }
             
