@@ -1367,6 +1367,12 @@ public class FunctionRewrite {
                     continue;
                 }
                 
+                // Validate new name: must be a valid C identifier (letters, digits, underscores, no spaces)
+                if (!SuggestionApplier.isValidVariableName(newName)) {
+                    results.add(new RenameResult(oldName, newName, false, "Invalid variable name: '" + newName + "'"));
+                    continue;
+                }
+                
                 HighSymbol symbol = symbolMap.get(oldName);
                 if (symbol == null) {
                     results.add(new RenameResult(oldName, newName, false, "Variable not found in decompiler output"));
