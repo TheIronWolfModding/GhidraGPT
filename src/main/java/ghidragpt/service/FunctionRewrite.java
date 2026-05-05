@@ -1422,13 +1422,24 @@ public class FunctionRewrite {
             symbolMap.put(sym.getName(), sym);
         }
         
+        // Pre-filter: silently drop renames where oldName doesn't exist as a symbol (hallucinated by LLM)
+        Map<String, String> filteredRenames = new LinkedHashMap<>();
+        for (Map.Entry<String, String> rename : renames.entrySet()) {
+            String oldName = rename.getKey();
+            if ("this".equals(oldName) || isMemberFieldName(oldName) || symbolMap.containsKey(oldName)) {
+                filteredRenames.put(oldName, rename.getValue());
+            } else {
+                Msg.info(this, "Dropping hallucinated rename: " + oldName + " (not in decompiler symbols)");
+            }
+        }
+        
         // Check if a full commit is needed (do it once before all renames)
         boolean committed = false;
         
         // Deduplicate rename targets: if multiple variables map to the same new name, keep only the first
         Set<String> usedTargetNames = new HashSet<>();
         Map<String, String> deduplicatedRenames = new LinkedHashMap<>();
-        for (Map.Entry<String, String> rename : renames.entrySet()) {
+        for (Map.Entry<String, String> rename : filteredRenames.entrySet()) {
             String oldName = rename.getKey();
             String newName = rename.getValue();
             if (usedTargetNames.contains(newName)) {
