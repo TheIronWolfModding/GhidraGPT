@@ -1052,7 +1052,19 @@ public class FunctionRewrite {
                 
                 if ("this".equals(oldName)) {
                     Msg.info(this, "Skipping rename of auto-parameter 'this'");
-                } else if (applyMemberFieldRename(function, program, oldName, newName)) {
+                    continue;
+                }
+                // Skip if old name already has m_ prefix (user convention)
+                if (oldName.startsWith("m_")) {
+                    result.suggestionOutcomes.add(new SuggestionOutcome(
+                        "Field Rename", oldName + " \u2192 " + newName, false, "Already has m_ prefix"));
+                    continue;
+                }
+                // Enforce m_ prefix on new name
+                if (!newName.startsWith("m_")) {
+                    newName = "m_" + newName;
+                }
+                if (applyMemberFieldRename(function, program, oldName, newName)) {
                     fieldRenameCount++;
                     result.variableRenames.put(oldName, newName);
                     result.suggestionOutcomes.add(new SuggestionOutcome("Field Rename", oldName + " \u2192 " + newName, true, null));
