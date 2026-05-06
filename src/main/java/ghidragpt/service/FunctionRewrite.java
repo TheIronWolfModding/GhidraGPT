@@ -66,6 +66,7 @@ import java.util.HashSet;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.stream.Collectors;
 import java.io.File;
 import java.io.FileWriter;
@@ -293,7 +294,7 @@ public class FunctionRewrite {
             result = applyComprehensiveRewrite(function, program, variableMap, rewriteSpec, monitor);
             
             // Debug save: write summary file after applying changes
-            if (debugPrefix != null && !result.suggestionOutcomes.isEmpty()) {
+            if (debugPrefix != null && (!result.suggestionOutcomes.isEmpty() || !rewriteSpec.classSuggestions.isEmpty())) {
                 try {
                     File summaryFile = new File(debugPrefix + "-summary");
                     try (FileWriter fw = new FileWriter(summaryFile)) {
@@ -313,6 +314,9 @@ public class FunctionRewrite {
                                 line += "  -> Reason: " + outcome.reason;
                             }
                             fw.write(line + "\n");
+                        }
+                        for (Map.Entry<String, String> entry : rewriteSpec.classSuggestions.entrySet()) {
+                            fw.write("[SUGGESTION] [Class Name] " + entry.getKey() + " -> " + entry.getValue() + "\n");
                         }
                     }
                     if (console != null) {
@@ -545,6 +549,43 @@ public class FunctionRewrite {
     }
     
     /**
+     * Extract class/struct references from decompiled code.
+     * Finds cls_0x* (unnamed classes), C_* and other named classes used in casts or namespaces.
+     */
+    private Set<String> extractClassReferences(String decompiledCode) {
+        Set<String> classes = new LinkedHashSet<>();
+        
+        // Match cls_0x* unnamed classes
+        Pattern clsPattern = Pattern.compile("\\b(cls_0x[0-9a-fA-F]+)\\b");
+        Matcher clsMatcher = clsPattern.matcher(decompiledCode);
+        while (clsMatcher.find()) {
+            classes.add(clsMatcher.group(1));
+        }
+        
+        // Match named classes/structs used as types: "ClassName *" or "ClassName **" in declarations and casts
+        Pattern typePattern = Pattern.compile("\\b([A-Z]\\w+)\\s*\\*");
+        Matcher typeMatcher = typePattern.matcher(decompiledCode);
+        while (typeMatcher.find()) {
+            String cls = typeMatcher.group(1);
+            if (!cls.matches("^(PVOID|DWORD|BYTE|WORD|LONG|ULONG|BOOL|CHAR|UINT|INT|VOID|HANDLE|LPVOID|LPCSTR|SIZE_T|HRESULT|NTSTATUS|FLOAT|DOUBLE|SHORT|USHORT)$")) {
+                classes.add(cls);
+            }
+        }
+        
+        // Match named classes in namespace calls: ClassName::method or OOAnalyzer::ClassName::method
+        Pattern nsPattern = Pattern.compile("\\b([A-Z]\\w+)::\\w+");
+        Matcher nsMatcher = nsPattern.matcher(decompiledCode);
+        while (nsMatcher.find()) {
+            String cls = nsMatcher.group(1);
+            if (!cls.equals("OOAnalyzer")) {
+                classes.add(cls);
+            }
+        }
+        
+        return classes;
+    }
+    
+    /**
      * Generate address-annotated decompiled code.
      * Each statement line is prefixed with its instruction address from the decompiler token tree,
      * so the LLM can reference exact addresses for comment placement.
@@ -732,6 +773,16 @@ public class FunctionRewrite {
                   .append(funcSection).append("\n");
         }
         
+        Set<String> classRefs = extractClassReferences(decompiledCode);
+        if (!classRefs.isEmpty()) {
+            StringBuilder classSection = new StringBuilder();
+            for (String cls : classRefs) {
+                classSection.append("- ").append(cls).append("\n");
+            }
+            prompt.append("Classes/Structs (suggest descriptive names via class_suggestions):\n")
+                  .append(classSection).append("\n");
+        }
+        
         prompt.append("Analysis Instructions:\n");
         prompt.append("1. Suggest a descriptive function name based on what the function does\n");
         prompt.append("2. Rename variables to reflect their purpose/usage\n");
@@ -746,7 +797,8 @@ public class FunctionRewrite {
         prompt.append("   - Data size patterns (int vs long vs pointer)\n");
         prompt.append("8. For global variables (DAT_*, cls_*), suggest descriptive names and types based on how they are used in this function\n");
         prompt.append("9. For struct member fields (field*_0x*, mbr_*) accessed via -> or . on any variable, suggest descriptive renames in field_renames using the field name as the key\n");
-        prompt.append("10. For function calls (FUN_*, cls_*::meth_*), suggest descriptive names in function_renames using the full call name as the key\n\n");
+        prompt.append("10. For function calls (FUN_*, cls_*::meth_*), suggest descriptive names in function_renames using the full call name as the key\n");
+        prompt.append("11. For all classes/structs (cls_0x*, C_*, etc.), suggest descriptive class names in class_suggestions\n\n");
         
         prompt.append("Answer strictly in this JSON format with no extra output:\n");
         prompt.append("{\n");
@@ -780,6 +832,11 @@ public class FunctionRewrite {
         prompt.append("  \"function_renames\": {\n");
         prompt.append("    \"cls_0x4099e0::meth_0x432070\": \"getVehicleIndex\",\n");
         prompt.append("    \"FUN_00412340\": \"calculateDamage\",\n");
+        prompt.append("    ...\n");
+        prompt.append("  },\n");
+        prompt.append("  \"class_suggestions\": {\n");
+        prompt.append("    \"cls_0x5099d0\": \"PlayerFileManager\",\n");
+        prompt.append("    \"C_AIW\": \"TrackAIWaypoints\",\n");
         prompt.append("    ...\n");
         prompt.append("  }\n");
         prompt.append("}\n\n");
@@ -816,6 +873,10 @@ public class FunctionRewrite {
         prompt.append("  \"function_renames\": {\n");
         prompt.append("    \"cls_0x4099e0::meth_0x432070\": \"getVehicleIndex\",\n");
         prompt.append("    \"FUN_00412340\": \"calculateDamage\"\n");
+        prompt.append("  },\n");
+        prompt.append("  \"class_suggestions\": {\n");
+        prompt.append("    \"cls_0x5099d0\": \"C_PlayerFileData\",\n");
+        prompt.append("    \"C_AIW\": \"C_TrackAIWaypoints\"\n");
         prompt.append("  }\n");
         prompt.append("}\n\n");
         
@@ -935,6 +996,9 @@ public class FunctionRewrite {
                             break;
                         case "function_renames":
                             parseJsonObjectFirstWins(parser, spec.functionRenames);
+                            break;
+                        case "class_suggestions":
+                            parseJsonObjectFirstWins(parser, spec.classSuggestions);
                             break;
                         default:
                             skipValue(parser);
@@ -1536,6 +1600,14 @@ public class FunctionRewrite {
             }
             lines.addAll(skipLines);
             lines.addAll(failLines);
+            
+            // Append class name suggestions (informational only, no renames applied)
+            if (!spec.classSuggestions.isEmpty()) {
+                for (Map.Entry<String, String> entry : spec.classSuggestions.entrySet()) {
+                    lines.add(new String[]{"SUGGESTION", "[SUGGESTION] [Class Name] " + entry.getKey() + " -> " + entry.getValue()});
+                }
+            }
+            
             console.printSuggestionSummary(function.getName(), lines);
         }
         
@@ -2886,6 +2958,7 @@ public class FunctionRewrite {
         Map<String, String> globalRenames = new HashMap<>();
         Map<String, String> globalTypes = new HashMap<>();
         Map<String, String> functionRenames = new HashMap<>();
+        Map<String, String> classSuggestions = new HashMap<>();
     }
     
     /**

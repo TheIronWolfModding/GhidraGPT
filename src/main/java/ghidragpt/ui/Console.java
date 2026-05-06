@@ -110,6 +110,11 @@ public class Console extends JPanel {
         StyleConstants.setForeground(headerStyle, new Color(198, 120, 221));
         StyleConstants.setBold(headerStyle, true);
         StyleConstants.setFontSize(headerStyle, 14);
+        
+        // Suggestion style - bright lime
+        Style suggestionStyle = textPane.addStyle("suggestion", null);
+        StyleConstants.setForeground(suggestionStyle, new Color(0, 255, 128));
+        StyleConstants.setBold(suggestionStyle, false);
     }
     
     private JPanel createToolbar() {
@@ -352,12 +357,14 @@ public class Console extends JPanel {
                 document.insertString(document.getLength(), "\nSuggestion Summary:\n", resultStyle);
                 document.insertString(document.getLength(), separator, resultStyle);
                 for (String[] line : lines) {
-                    // line[0] = "OK", "SKIP", or "FAIL"; line[1] = text
+                    // line[0] = "OK", "SKIP", "FAIL", or "SUGGESTION"; line[1] = text
                     Style style;
                     if ("OK".equals(line[0])) {
                         style = textPane.getStyle("success");
                     } else if ("SKIP".equals(line[0])) {
                         style = textPane.getStyle("warning");
+                    } else if ("SUGGESTION".equals(line[0])) {
+                        style = textPane.getStyle("suggestion");
                     } else {
                         style = errorStyle;
                     }
