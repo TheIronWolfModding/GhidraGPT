@@ -11,6 +11,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -630,10 +631,11 @@ public class APIClient {
         OllamaRequest request = new OllamaRequest();
         request.model = model.isEmpty() ? "llama3.2" : model;
         request.messages = List.of(
-            new OllamaMessage("system", "You are a security expert. /no_think"),
+            new OllamaMessage("system", "You are a security expert."),
             new OllamaMessage("user", prompt)
         );
         request.stream = true;
+        request.think = false;
         
         String jsonRequest = objectMapper.writeValueAsString(request);
         
@@ -1355,6 +1357,7 @@ public class APIClient {
         public String model;
         public List<OllamaMessage> messages;
         public boolean stream = false;
+        public Boolean think;
     }
     
     @JsonIgnoreProperties(ignoreUnknown = true)

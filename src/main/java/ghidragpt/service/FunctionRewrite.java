@@ -1278,7 +1278,7 @@ public class FunctionRewrite {
                         maxSize = fieldOffsets.get(idx + 1) - thisOffset;
                     }
                 }
-                if (applyMemberFieldRename(function, program, oldName, newName, maxSize)) {
+                if (applyMemberFieldRename(function, program, oldName, newName, maxSize, variableMap)) {
                     fieldRenameCount++;
                     result.variableRenames.put(oldName, newName);
                     result.suggestionOutcomes.add(new SuggestionOutcome("Field Rename", oldName + " \u2192 " + newName, true, null));
@@ -2084,48 +2084,82 @@ public class FunctionRewrite {
      * since fields like field9_0x60 may live on a nested struct (e.g. this->m_viewStuff.field9_0x60).
      * Falls back to offset-based lookup on the top-level struct if name search fails.
      */
-    private boolean applyMemberFieldRename(Function function, Program program, String oldName, String newName, int maxSize) {
+    private boolean applyMemberFieldRename(Function function, Program program, String oldName, String newName, int maxSize, Map<String, VariableInfo> variableMap) {
         try {
-            // Get the 'this' parameter's struct type
+            // Collect struct types from ALL pointer-to-struct variables (params + locals + decompiler-inferred)
+            Set<String> seen = new HashSet<>();
+            List<Structure> candidateStructs = new ArrayList<>();
+            
+            // From parameters
             Parameter[] params = function.getParameters();
-            if (params.length == 0) {
-                return false;
+            for (Parameter param : params) {
+                Structure s = extractStructFromType(param.getDataType());
+                if (s != null && seen.add(s.getPathName())) {
+                    candidateStructs.add(s);
+                }
             }
             
-            // Find a pointer-to-struct parameter (typically 'this' is first)
-            Structure topStruct = null;
-            for (Parameter param : params) {
-                DataType paramType = param.getDataType();
-                if (paramType instanceof Pointer) {
-                    DataType baseType = ((Pointer) paramType).getDataType();
-                    // Unwrap typedefs (e.g. OOAnalyzer classes)
-                    while (baseType instanceof ghidra.program.model.data.TypeDef) {
-                        baseType = ((ghidra.program.model.data.TypeDef) baseType).getBaseDataType();
-                    }
-                    if (baseType instanceof Structure) {
-                        topStruct = (Structure) baseType;
-                        break;
+            // From local variables (listing level)
+            Variable[] locals = function.getLocalVariables();
+            for (Variable local : locals) {
+                Structure s = extractStructFromType(local.getDataType());
+                if (s != null && seen.add(s.getPathName())) {
+                    candidateStructs.add(s);
+                }
+            }
+            
+            // From decompiler-inferred types (variableMap has HighSymbol types)
+            if (variableMap != null) {
+                for (VariableInfo info : variableMap.values()) {
+                    if (info.highVariable != null) {
+                        Structure s = extractStructFromType(info.highVariable.getDataType());
+                        if (s != null && seen.add(s.getPathName())) {
+                            candidateStructs.add(s);
+                        }
                     }
                 }
             }
             
-            if (topStruct == null) {
-                Msg.warn(this, "applyMemberFieldRename: no pointer-to-struct param found for " + oldName);
+            if (candidateStructs.isEmpty()) {
                 return false;
             }
             
-            Msg.info(this, "applyMemberFieldRename: struct=" + topStruct.getName() 
-                + " path=" + topStruct.getCategoryPath() 
-                + " len=" + topStruct.getLength()
-                + " dtm=" + topStruct.getDataTypeManager().getName()
-                + " for " + oldName + " -> " + newName);
+            // Try each candidate struct
+            for (Structure topStruct : candidateStructs) {
+                if (tryRenameFieldOnStruct(topStruct, oldName, newName, maxSize)) {
+                    return true;
+                }
+            }
             
-            // Strategy 1: Search by field name across struct hierarchy (handles nested structs)
+            return false;
+            
+        } catch (Exception e) {
+            Msg.error(this, "Error renaming member field " + oldName, e);
+            return false;
+        }
+    }
+    
+    private Structure extractStructFromType(DataType type) {
+        if (type instanceof Pointer) {
+            DataType baseType = ((Pointer) type).getDataType();
+            while (baseType instanceof ghidra.program.model.data.TypeDef) {
+                baseType = ((ghidra.program.model.data.TypeDef) baseType).getBaseDataType();
+            }
+            if (baseType instanceof Structure) {
+                return (Structure) baseType;
+            }
+        }
+        return null;
+    }
+    
+    private boolean tryRenameFieldOnStruct(Structure topStruct, String oldName, String newName, int maxSize) {
+        try {
+            // Strategy 1: Search by field name across struct hierarchy
             DataTypeComponent found = findComponentByName(topStruct, oldName);
             if (found != null) {
                 try {
                     found.setFieldName(newName);
-                    Msg.info(this, "Renamed struct field: " + oldName + " -> " + newName);
+                    Msg.info(this, "Renamed struct field: " + oldName + " -> " + newName + " on " + topStruct.getName());
                     return true;
                 } catch (DuplicateNameException e) {
                     Msg.warn(this, "Duplicate field name: " + newName);
@@ -2133,30 +2167,21 @@ public class FunctionRewrite {
                 }
             }
             
-            // Strategy 2: Offset-based lookup on top-level struct (for mbr_0x18, field13_0x38 patterns)
+            // Strategy 2: Offset-based lookup on this struct
             Matcher offsetMatcher = Pattern.compile("0x([0-9a-fA-F]+)").matcher(oldName);
             if (offsetMatcher.find()) {
                 int fieldOffset = Integer.parseInt(offsetMatcher.group(1), 16);
                 
-                // Grow the struct if the offset is beyond its current length
+                // Skip if offset is beyond this struct's size (probably belongs to another struct)
                 if (fieldOffset >= topStruct.getLength()) {
-                    topStruct.growStructure(fieldOffset - topStruct.getLength() + 4);
-                    Msg.info(this, "Grew struct " + topStruct.getName() + " to cover offset 0x" + Integer.toHexString(fieldOffset));
+                    return false;
                 }
                 
-                // Try top-level struct first
                 DataTypeComponent component = topStruct.getComponentAt(fieldOffset);
                 if (component != null) {
                     String currentFieldName = component.getFieldName();
-                    Msg.info(this, "  offset 0x" + Integer.toHexString(fieldOffset) 
-                        + " -> component: fieldName=" + currentFieldName 
-                        + " type=" + component.getDataType().getDisplayName()
-                        + " ordinal=" + component.getOrdinal()
-                        + " offset=" + component.getOffset());
                     if (currentFieldName == null || isDefaultFieldName(currentFieldName)) {
                         try {
-                            // If component is a 1-byte undefined, replace with a properly-sized
-                            // component so the decompiler uses our field name for multi-byte accesses
                             DataType compType = component.getDataType();
                             if (compType.getLength() == 1 && compType.getDisplayName().toLowerCase().contains("undefined")) {
                                 int consecutiveUndefined = 0;
@@ -2178,8 +2203,7 @@ public class FunctionRewrite {
                                     DataType undefinedN = ghidra.program.model.data.Undefined.getUndefinedDataType(size);
                                     topStruct.replaceAtOffset(fieldOffset, undefinedN, size, newName, null);
                                     Msg.info(this, "Sized+renamed " + size + "-byte field: " + oldName + " -> " + newName 
-                                        + " at offset 0x" + Integer.toHexString(fieldOffset) 
-                                        + " (had " + consecutiveUndefined + " consecutive undefined bytes)");
+                                        + " at offset 0x" + Integer.toHexString(fieldOffset) + " on " + topStruct.getName());
                                     return true;
                                 }
                             }
@@ -2211,9 +2235,7 @@ public class FunctionRewrite {
             }
             
             return false;
-            
         } catch (Exception e) {
-            Msg.error(this, "Error renaming member field " + oldName, e);
             return false;
         }
     }
@@ -2292,47 +2314,47 @@ public class FunctionRewrite {
                 return "";
             }
             
-            // Find pointer-to-struct from parameters
+            // Collect ALL pointer-to-struct variables (params + locals)
+            Set<String> seen = new HashSet<>();
+            List<Structure> candidateStructs = new ArrayList<>();
             Parameter[] params = function.getParameters();
-            if (params.length == 0) {
-                return "";
-            }
-            
-            Structure topStruct = null;
             for (Parameter param : params) {
-                DataType paramType = param.getDataType();
-                if (paramType instanceof Pointer) {
-                    DataType baseType = ((Pointer) paramType).getDataType();
-                    if (baseType instanceof Structure) {
-                        topStruct = (Structure) baseType;
-                        break;
-                    }
+                Structure s = extractStructFromType(param.getDataType());
+                if (s != null && seen.add(s.getPathName())) {
+                    candidateStructs.add(s);
+                }
+            }
+            Variable[] locals = function.getLocalVariables();
+            for (Variable local : locals) {
+                Structure s = extractStructFromType(local.getDataType());
+                if (s != null && seen.add(s.getPathName())) {
+                    candidateStructs.add(s);
                 }
             }
             
-            if (topStruct == null) {
+            if (candidateStructs.isEmpty()) {
                 return "";
             }
             
-            // Strategy 1: Find by original field name across struct hierarchy
-            DataTypeComponent component = findComponentByName(topStruct, originalFieldName);
-            
-            // Strategy 2: Find by offset on top-level struct, then nested structs
-            if (component == null) {
+            // Try each struct to find the field
+            DataTypeComponent component = null;
+            Structure topStruct = null;
+            for (Structure candidate : candidateStructs) {
+                // Strategy 1: Find by original field name across struct hierarchy
+                component = findComponentByName(candidate, originalFieldName);
+                if (component != null) { topStruct = candidate; break; }
+                
+                // Strategy 2: Find by offset
                 String nameForOffset = isMemberFieldName(originalFieldName) ? originalFieldName : varName;
                 Matcher offsetMatcher = Pattern.compile("0x([0-9a-fA-F]+)").matcher(nameForOffset);
                 if (offsetMatcher.find()) {
                     int fieldOffset = Integer.parseInt(offsetMatcher.group(1), 16);
-                    
-                    // Grow the struct if the offset is beyond its current length
-                    if (fieldOffset >= topStruct.getLength()) {
-                        topStruct.growStructure(fieldOffset - topStruct.getLength() + 4);
-                        Msg.info(this, "Grew struct " + topStruct.getName() + " to cover offset 0x" + Integer.toHexString(fieldOffset));
-                    }
-                    
-                    component = topStruct.getComponentAt(fieldOffset);
-                    if (component == null) {
-                        component = findComponentByOffsetInNestedStructs(topStruct, fieldOffset);
+                    if (fieldOffset < candidate.getLength()) {
+                        component = candidate.getComponentAt(fieldOffset);
+                        if (component == null) {
+                            component = findComponentByOffsetInNestedStructs(candidate, fieldOffset);
+                        }
+                        if (component != null) { topStruct = candidate; break; }
                     }
                 }
             }
