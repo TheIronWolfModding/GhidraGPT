@@ -1743,6 +1743,14 @@ public class FunctionRewrite {
     }
     
     /**
+     * Returns true if the field name is a decompiler/tool default (safe to overwrite).
+     * Does NOT match user-assigned m_ names.
+     */
+    private boolean isDefaultFieldName(String name) {
+        return name.startsWith("mbr_") || name.startsWith("field");
+    }
+    
+    /**
      * Normalize a name to camelCase, strip any m_/g_ prefix the model may have added.
      * Handles snake_case, PascalCase, and already-camelCase inputs.
      */
@@ -1851,7 +1859,7 @@ public class FunctionRewrite {
                         + " type=" + component.getDataType().getDisplayName()
                         + " ordinal=" + component.getOrdinal()
                         + " offset=" + component.getOffset());
-                    if (currentFieldName == null || isMemberFieldName(currentFieldName)) {
+                    if (currentFieldName == null || isDefaultFieldName(currentFieldName)) {
                         try {
                             // If component is a 1-byte undefined, replace with a properly-sized
                             // component so the decompiler uses our field name for multi-byte accesses
@@ -1895,7 +1903,7 @@ public class FunctionRewrite {
                 DataTypeComponent nestedResult = findComponentByOffsetInNestedStructs(topStruct, fieldOffset);
                 if (nestedResult != null) {
                     String currentFieldName = nestedResult.getFieldName();
-                    if (currentFieldName == null || isMemberFieldName(currentFieldName)) {
+                    if (currentFieldName == null || isDefaultFieldName(currentFieldName)) {
                         try {
                             nestedResult.setFieldName(newName);
                             Msg.info(this, "Renamed nested struct field: " + oldName + " -> " + newName + " at offset 0x" + Integer.toHexString(fieldOffset));
