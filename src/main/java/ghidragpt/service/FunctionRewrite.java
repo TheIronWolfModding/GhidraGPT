@@ -701,7 +701,7 @@ public class FunctionRewrite {
         prompt.append("   - Return values and error codes\n");
         prompt.append("   - Data size patterns (int vs long vs pointer)\n");
         prompt.append("8. For global variables (DAT_*, cls_*), suggest descriptive names and types based on how they are used in this function\n");
-        prompt.append("9. For struct member fields (field*_0x*, mbr_*) accessed via -> or . on any variable, suggest descriptive renames in variable_renames using the field name as the key\n\n");
+        prompt.append("9. For struct member fields (field*_0x*, mbr_*) accessed via -> or . on any variable, suggest descriptive renames in field_renames using the field name as the key\n\n");
         
         prompt.append("Answer strictly in this JSON format with no extra output:\n");
         prompt.append("{\n");
@@ -726,6 +726,11 @@ public class FunctionRewrite {
         prompt.append("  \"global_types\": {\n");
         prompt.append("    \"DAT_0054a938\": \"float\",\n");
         prompt.append("    ...\n");
+        prompt.append("  },\n");
+        prompt.append("  \"field_renames\": {\n");
+        prompt.append("    \"field_0x60\": \"m_fieldOfView\",\n");
+        prompt.append("    \"mbr_0x10\": \"m_rotationX\",\n");
+        prompt.append("    ...\n");
         prompt.append("  }\n");
         prompt.append("}\n\n");
         
@@ -736,8 +741,6 @@ public class FunctionRewrite {
         prompt.append("    \"param_1\": \"violationAddress\",\n");
         prompt.append("    \"local_38\": \"imageBaseBuffer\",\n");
         prompt.append("    \"uStack_20\": \"stackParameter\",\n");
-        prompt.append("    \"field9_0x60\": \"m_fieldOfView\",\n");
-        prompt.append("    \"mbr_0x10\": \"m_rotationX\"\n");
         prompt.append("  },\n");
         prompt.append("  \"variable_types\": {\n");
         prompt.append("    \"violationAddress\": \"PVOID\",\n");
@@ -755,6 +758,10 @@ public class FunctionRewrite {
         prompt.append("  \"global_types\": {\n");
         prompt.append("    \"DAT_0054a938\": \"float\",\n");
         prompt.append("    \"DAT_0054a93c\": \"float\"\n");
+        prompt.append("  },\n");
+        prompt.append("  \"field_renames\": {\n");
+        prompt.append("    \"field9_0x60\": \"m_fieldOfView\",\n");
+        prompt.append("    \"mbr_0x10\": \"m_rotationX\"\n");
         prompt.append("  }\n");
         prompt.append("}\n\n");
         
