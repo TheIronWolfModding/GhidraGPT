@@ -244,11 +244,12 @@ public class FunctionRewrite {
             }
             
             // Debug save: write prompt and response to files
+            String debugPrefix = null;
             if (configManager != null && "save".equals(configManager.getDebugMode())) {
                 String debugPath = configManager.getDebugPath();
                 if (debugPath != null && !debugPath.isEmpty()) {
                     String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-                    String debugPrefix = debugPath + File.separator + function.getName() + "-" + timestamp;
+                    debugPrefix = debugPath + File.separator + function.getName() + "-" + timestamp;
                     try {
                         File promptFile = new File(debugPrefix + "-prompt");
                         promptFile.getParentFile().mkdirs();
@@ -287,6 +288,37 @@ public class FunctionRewrite {
             
             // Apply the comprehensive rewrite changes
             result = applyComprehensiveRewrite(function, program, variableMap, rewriteSpec, monitor);
+            
+            // Debug save: write summary file after applying changes
+            if (debugPrefix != null && !result.suggestionOutcomes.isEmpty()) {
+                try {
+                    File summaryFile = new File(debugPrefix + "-summary");
+                    try (FileWriter fw = new FileWriter(summaryFile)) {
+                        for (SuggestionOutcome outcome : result.suggestionOutcomes) {
+                            String tag = outcome.applied ? "OK" : "SKIP";
+                            if (!outcome.applied && outcome.reason != null) {
+                                boolean skipped = outcome.reason.startsWith("Already typed as") ||
+                                    outcome.reason.startsWith("Already has") ||
+                                    outcome.reason.startsWith("Duplicate target name") ||
+                                    outcome.reason.startsWith("Name '") ||
+                                    outcome.reason.equals("Variable not found") ||
+                                    outcome.reason.equals("Already user-renamed");
+                                tag = skipped ? "SKIP" : "FAIL";
+                            }
+                            String line = "[" + tag + "] [" + outcome.category + "] " + outcome.suggestion;
+                            if (!outcome.applied && outcome.reason != null) {
+                                line += "  -> Reason: " + outcome.reason;
+                            }
+                            fw.write(line + "\n");
+                        }
+                    }
+                    if (console != null) {
+                        console.appendInfo("[Debug] Saved summary to: " + debugPrefix + "-summary");
+                    }
+                } catch (IOException ioEx) {
+                    Msg.warn(this, "Failed to save debug summary: " + ioEx.getMessage());
+                }
+            }
             
             monitor.setProgress(100);
             
@@ -1057,13 +1089,19 @@ public class FunctionRewrite {
             }
             
             // Handle member field renames and 'this' separately
+            Msg.info(this, "Field rename loop: spec.variableRenames has " + spec.variableRenames.size() + " entries");
             for (Map.Entry<String, String> rename : spec.variableRenames.entrySet()) {
                 if (monitor.isCancelled()) break;
                 String oldName = rename.getKey();
                 String newName = rename.getValue();
                 
+                boolean isField = isMemberFieldName(oldName);
+                if (isField) {
+                    Msg.info(this, "Field rename candidate: " + oldName + " -> " + newName);
+                }
+                
                 // Skip entries already handled by the batch
-                if (!"this".equals(oldName) && !isMemberFieldName(oldName)) {
+                if (!"this".equals(oldName) && !isField) {
                     continue;
                 }
                 
@@ -1709,6 +1747,12 @@ public class FunctionRewrite {
                 return false;
             }
             
+            Msg.info(this, "applyMemberFieldRename: struct=" + topStruct.getName() 
+                + " path=" + topStruct.getCategoryPath() 
+                + " len=" + topStruct.getLength()
+                + " dtm=" + topStruct.getDataTypeManager().getName()
+                + " for " + oldName + " -> " + newName);
+            
             // Strategy 1: Search by field name across struct hierarchy (handles nested structs)
             DataTypeComponent found = findComponentByName(topStruct, oldName);
             if (found != null) {
@@ -1737,8 +1781,41 @@ public class FunctionRewrite {
                 DataTypeComponent component = topStruct.getComponentAt(fieldOffset);
                 if (component != null) {
                     String currentFieldName = component.getFieldName();
+                    Msg.info(this, "  offset 0x" + Integer.toHexString(fieldOffset) 
+                        + " -> component: fieldName=" + currentFieldName 
+                        + " type=" + component.getDataType().getDisplayName()
+                        + " ordinal=" + component.getOrdinal()
+                        + " offset=" + component.getOffset());
                     if (currentFieldName == null || isMemberFieldName(currentFieldName)) {
                         try {
+                            // If component is a 1-byte undefined, replace with a properly-sized
+                            // component so the decompiler uses our field name for multi-byte accesses
+                            DataType compType = component.getDataType();
+                            if (compType.getLength() == 1 && compType.getDisplayName().toLowerCase().contains("undefined")) {
+                                int consecutiveUndefined = 0;
+                                for (int i = fieldOffset; i < topStruct.getLength(); i++) {
+                                    DataTypeComponent c = topStruct.getComponentAt(i);
+                                    if (c != null && c.getDataType().getLength() == 1 &&
+                                        c.getDataType().getDisplayName().toLowerCase().contains("undefined")) {
+                                        consecutiveUndefined++;
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                int size = 1;
+                                if (consecutiveUndefined >= 8) size = 8;
+                                else if (consecutiveUndefined >= 4) size = 4;
+                                else if (consecutiveUndefined >= 2) size = 2;
+
+                                if (size > 1) {
+                                    DataType undefinedN = ghidra.program.model.data.Undefined.getUndefinedDataType(size);
+                                    topStruct.replaceAtOffset(fieldOffset, undefinedN, size, newName, null);
+                                    Msg.info(this, "Sized+renamed " + size + "-byte field: " + oldName + " -> " + newName 
+                                        + " at offset 0x" + Integer.toHexString(fieldOffset) 
+                                        + " (had " + consecutiveUndefined + " consecutive undefined bytes)");
+                                    return true;
+                                }
+                            }
                             component.setFieldName(newName);
                             Msg.info(this, "Renamed struct field on " + topStruct.getName() + ": " + oldName + " -> " + newName + " at offset 0x" + Integer.toHexString(fieldOffset));
                             return true;
