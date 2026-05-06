@@ -1141,9 +1141,7 @@ public class FunctionRewrite {
                     continue;
                 }
                 // Enforce m_ prefix on new name
-                if (!newName.startsWith("m_")) {
-                    newName = "m_" + newName;
-                }
+                newName = "m_" + normalizeToCamelCase(newName);
                 // Compute max size from distance to next known field offset
                 int maxSize = 8; // default cap
                 Matcher om = offsetPat.matcher(oldName);
@@ -1258,9 +1256,7 @@ public class FunctionRewrite {
                     continue;
                 }
                 // Enforce g_ prefix on new name
-                if (!newName.startsWith("g_")) {
-                    newName = "g_" + newName;
-                }
+                newName = "g_" + normalizeToCamelCase(newName);
                 if (!isDefaultGlobalName(oldName)) {
                     result.suggestionOutcomes.add(new SuggestionOutcome(
                         "Global Rename", oldName + " \u2192 " + newName, false, "Already user-renamed"));
@@ -1535,7 +1531,7 @@ public class FunctionRewrite {
         Map<String, String> deduplicatedRenames = new LinkedHashMap<>();
         for (Map.Entry<String, String> rename : filteredRenames.entrySet()) {
             String oldName = rename.getKey();
-            String newName = rename.getValue();
+            String newName = normalizeToCamelCase(rename.getValue());
             if (usedTargetNames.contains(newName)) {
                 results.add(new RenameResult(oldName, newName, false,
                     "Duplicate target name '" + newName + "' already used by another rename"));
@@ -1744,6 +1740,40 @@ public class FunctionRewrite {
      */
     private boolean isMemberFieldName(String name) {
         return name.startsWith("mbr_") || name.startsWith("field") || name.startsWith("m_");
+    }
+    
+    /**
+     * Normalize a name to camelCase, strip any m_/g_ prefix the model may have added.
+     * Handles snake_case, PascalCase, and already-camelCase inputs.
+     */
+    private String normalizeToCamelCase(String name) {
+        if (name == null || name.isEmpty()) return name;
+        // Strip m_ or g_ prefix if model already added one
+        if (name.startsWith("m_") || name.startsWith("g_")) {
+            name = name.substring(2);
+        }
+        if (name.isEmpty()) return name;
+        // If it contains underscores, treat as snake_case
+        if (name.contains("_")) {
+            StringBuilder sb = new StringBuilder();
+            boolean capitalizeNext = false;
+            for (int i = 0; i < name.length(); i++) {
+                char c = name.charAt(i);
+                if (c == '_') {
+                    capitalizeNext = true;
+                } else {
+                    if (capitalizeNext) {
+                        sb.append(Character.toUpperCase(c));
+                        capitalizeNext = false;
+                    } else {
+                        sb.append(sb.length() == 0 ? Character.toLowerCase(c) : c);
+                    }
+                }
+            }
+            return sb.toString();
+        }
+        // Otherwise ensure first char is lowercase (PascalCase -> camelCase)
+        return Character.toLowerCase(name.charAt(0)) + name.substring(1);
     }
     
     /**
