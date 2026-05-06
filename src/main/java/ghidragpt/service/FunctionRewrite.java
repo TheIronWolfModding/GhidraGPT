@@ -248,8 +248,11 @@ public class FunctionRewrite {
             if (configManager != null && "save".equals(configManager.getDebugMode())) {
                 String debugPath = configManager.getDebugPath();
                 if (debugPath != null && !debugPath.isEmpty()) {
+                    if (!debugPath.endsWith(File.separator) && !debugPath.endsWith("/")) {
+                        debugPath = debugPath + File.separator;
+                    }
                     String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-                    debugPrefix = debugPath + File.separator + function.getName() + "-" + timestamp;
+                    debugPrefix = debugPath + function.getName() + "-" + timestamp;
                     try {
                         File promptFile = new File(debugPrefix + "-prompt");
                         promptFile.getParentFile().mkdirs();
@@ -261,11 +264,11 @@ public class FunctionRewrite {
                             fw.write(aiResponse);
                         }
                         if (console != null) {
-                            console.appendInfo("[Debug] Saved prompt and response to: " + debugPrefix + "-*");
+                            console.appendInfo("Saved prompt and response to: " + debugPrefix + "-*");
                         }
                     } catch (IOException ioEx) {
                         if (console != null) {
-                            console.appendInfo("[Debug] Failed to save debug files: " + ioEx.getMessage());
+                            console.appendInfo("Failed to save debug files: " + ioEx.getMessage());
                         }
                     }
                 }
@@ -313,7 +316,7 @@ public class FunctionRewrite {
                         }
                     }
                     if (console != null) {
-                        console.appendInfo("[Debug] Saved summary to: " + debugPrefix + "-summary");
+                        console.appendInfo("Saved summary to: " + debugPrefix + "-summary");
                     }
                 } catch (IOException ioEx) {
                     Msg.warn(this, "Failed to save debug summary: " + ioEx.getMessage());
