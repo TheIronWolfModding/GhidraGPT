@@ -511,6 +511,37 @@ public class FunctionRewrite {
     }
     
     /**
+     * Extract function call references from decompiled code.
+     * Finds FUN_* (global functions) and *::meth_* (member functions) patterns.
+     * Returns a map of function name -> example call expression.
+     */
+    private Map<String, String> extractFunctionCallReferences(String decompiledCode) {
+        Map<String, String> funcs = new LinkedHashMap<>();
+        
+        // Match any_namespace::meth_0x* member function calls (cls_0x*, OOAnalyzer::ClassName::, etc.)
+        Pattern methPattern = Pattern.compile("([\\w:]+)::(meth_0x[0-9a-fA-F]+)");
+        Matcher methMatcher = methPattern.matcher(decompiledCode);
+        while (methMatcher.find()) {
+            String fullMatch = methMatcher.group(0);
+            if (!funcs.containsKey(fullMatch)) {
+                funcs.put(fullMatch, fullMatch + "(...)");
+            }
+        }
+        
+        // Match FUN_0x* global function calls
+        Pattern funPattern = Pattern.compile("\\b(FUN_[0-9a-fA-F]+)\\b");
+        Matcher funMatcher = funPattern.matcher(decompiledCode);
+        while (funMatcher.find()) {
+            String fun = funMatcher.group(1);
+            if (!funcs.containsKey(fun)) {
+                funcs.put(fun, fun + "(...)");
+            }
+        }
+        
+        return funcs;
+    }
+    
+    /**
      * Generate address-annotated decompiled code.
      * Each statement line is prefixed with its instruction address from the decompiler token tree,
      * so the LLM can reference exact addresses for comment placement.
@@ -688,6 +719,16 @@ public class FunctionRewrite {
                   .append(memberSection).append("\n");
         }
         
+        Map<String, String> functionCalls = extractFunctionCallReferences(decompiledCode);
+        if (!functionCalls.isEmpty()) {
+            StringBuilder funcSection = new StringBuilder();
+            for (Map.Entry<String, String> entry : functionCalls.entrySet()) {
+                funcSection.append("- ").append(entry.getKey()).append("\n");
+            }
+            prompt.append("Function Calls (need descriptive names via function_renames):\n")
+                  .append(funcSection).append("\n");
+        }
+        
         prompt.append("Analysis Instructions:\n");
         prompt.append("1. Suggest a descriptive function name based on what the function does\n");
         prompt.append("2. Rename variables to reflect their purpose/usage\n");
@@ -701,7 +742,8 @@ public class FunctionRewrite {
         prompt.append("   - Return values and error codes\n");
         prompt.append("   - Data size patterns (int vs long vs pointer)\n");
         prompt.append("8. For global variables (DAT_*, cls_*), suggest descriptive names and types based on how they are used in this function\n");
-        prompt.append("9. For struct member fields (field*_0x*, mbr_*) accessed via -> or . on any variable, suggest descriptive renames in field_renames using the field name as the key\n\n");
+        prompt.append("9. For struct member fields (field*_0x*, mbr_*) accessed via -> or . on any variable, suggest descriptive renames in field_renames using the field name as the key\n");
+        prompt.append("10. For function calls (FUN_*, cls_*::meth_*), suggest descriptive names in function_renames using the full call name as the key\n\n");
         
         prompt.append("Answer strictly in this JSON format with no extra output:\n");
         prompt.append("{\n");
@@ -730,6 +772,11 @@ public class FunctionRewrite {
         prompt.append("  \"field_renames\": {\n");
         prompt.append("    \"field_0x60\": \"m_fieldOfView\",\n");
         prompt.append("    \"mbr_0x10\": \"m_rotationX\",\n");
+        prompt.append("    ...\n");
+        prompt.append("  },\n");
+        prompt.append("  \"function_renames\": {\n");
+        prompt.append("    \"cls_0x4099e0::meth_0x432070\": \"getVehicleIndex\",\n");
+        prompt.append("    \"FUN_00412340\": \"calculateDamage\",\n");
         prompt.append("    ...\n");
         prompt.append("  }\n");
         prompt.append("}\n\n");
@@ -762,6 +809,10 @@ public class FunctionRewrite {
         prompt.append("  \"field_renames\": {\n");
         prompt.append("    \"field9_0x60\": \"m_fieldOfView\",\n");
         prompt.append("    \"mbr_0x10\": \"m_rotationX\"\n");
+        prompt.append("  },\n");
+        prompt.append("  \"function_renames\": {\n");
+        prompt.append("    \"cls_0x4099e0::meth_0x432070\": \"getVehicleIndex\",\n");
+        prompt.append("    \"FUN_00412340\": \"calculateDamage\"\n");
         prompt.append("  }\n");
         prompt.append("}\n\n");
         
@@ -879,6 +930,9 @@ public class FunctionRewrite {
                             // Model sometimes puts field renames in a separate key; merge into variableRenames
                             parseJsonObjectFirstWins(parser, spec.variableRenames);
                             break;
+                        case "function_renames":
+                            parseJsonObjectFirstWins(parser, spec.functionRenames);
+                            break;
                         default:
                             skipValue(parser);
                             break;
@@ -889,6 +943,10 @@ public class FunctionRewrite {
             // Normalize keys: strip "this->" prefix so struct field refs route to field handlers
             spec.variableRenames = stripThisPrefix(spec.variableRenames);
             spec.variableTypes = stripThisPrefix(spec.variableTypes);
+            
+            // Normalize type values: INT->int, FLOAT->float, BOOL->bool, etc.
+            normalizeTypeValues(spec.variableTypes);
+            normalizeTypeValues(spec.globalTypes);
 
         } catch (Exception e) {
             Msg.error(this, "Failed to parse JSON response: " + e.getMessage());
@@ -1015,6 +1073,7 @@ public class FunctionRewrite {
         }
         totalChanges += spec.globalTypes.size();
         totalChanges += spec.globalRenames.size();
+        totalChanges += spec.functionRenames.size();
         
         int currentChange = 0;
         long lastStatusTime = System.currentTimeMillis();
@@ -1276,6 +1335,114 @@ public class FunctionRewrite {
                 lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
+            // 9. Apply function call renames (FUN_* -> F_, meth_* -> M_)
+            int funcRenameCount = 0;
+            for (Map.Entry<String, String> rename : spec.functionRenames.entrySet()) {
+                if (monitor.isCancelled()) break;
+                String oldName = rename.getKey();
+                String newName = rename.getValue();
+                if (oldName.equals(newName)) continue;
+                
+                // Determine prefix and address based on pattern
+                String prefix;
+                String addrStr;
+                if (oldName.contains("::")) {
+                    // *::meth_0x* -> M_ prefix, extract address from last ::meth_0x* segment
+                    prefix = "M_";
+                    String methPart = oldName.substring(oldName.lastIndexOf("::") + 2);
+                    addrStr = methPart.replace("meth_", "");
+                } else {
+                    // FUN_* -> F_ prefix
+                    prefix = "F_";
+                    addrStr = oldName.replace("FUN_", "");
+                }
+                
+                // Resolve target function: try symbol name first (handles rebased binaries),
+                // then fall back to address-based lookup
+                Function targetFunc = null;
+                SymbolTable symTable = program.getSymbolTable();
+                
+                // For meth_* entries, search by the meth symbol name directly
+                String methName = oldName.contains("::") 
+                    ? oldName.substring(oldName.lastIndexOf("::") + 2) : null;
+                if (methName != null) {
+                    Iterator<Symbol> syms = symTable.getSymbols(methName);
+                    while (syms.hasNext()) {
+                        Symbol s = syms.next();
+                        Function f = program.getFunctionManager().getFunctionAt(s.getAddress());
+                        if (f != null) { targetFunc = f; break; }
+                    }
+                }
+                
+                // Try by address (works for FUN_* which use actual program addresses)
+                if (targetFunc == null) {
+                    try {
+                        String cleanAddr = addrStr.startsWith("0x") ? addrStr.substring(2) : addrStr;
+                        long addrLong = Long.parseLong(cleanAddr, 16);
+                        Address addr = program.getAddressFactory().getDefaultAddressSpace().getAddress(addrLong);
+                        if (addr != null) {
+                            targetFunc = program.getFunctionManager().getFunctionAt(addr);
+                            if (targetFunc == null) {
+                                targetFunc = program.getFunctionManager().getFunctionContaining(addr);
+                            }
+                        }
+                        // If that failed and address looks like it includes image base, subtract it
+                        if (targetFunc == null) {
+                            long imageBase = program.getImageBase().getOffset();
+                            if (addrLong > imageBase) {
+                                Address rebased = program.getAddressFactory().getDefaultAddressSpace()
+                                    .getAddress(addrLong - imageBase);
+                                if (rebased != null) {
+                                    targetFunc = program.getFunctionManager().getFunctionAt(rebased);
+                                    if (targetFunc == null) {
+                                        targetFunc = program.getFunctionManager().getFunctionContaining(rebased);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+                
+                // For FUN_* try symbol name lookup as well
+                if (targetFunc == null && !oldName.contains("::")) {
+                    Iterator<Symbol> syms = symTable.getSymbols(oldName);
+                    while (syms.hasNext()) {
+                        Symbol s = syms.next();
+                        Function f = program.getFunctionManager().getFunctionAt(s.getAddress());
+                        if (f != null) { targetFunc = f; break; }
+                    }
+                }
+                
+                if (targetFunc == null) {
+                    result.suggestionOutcomes.add(new SuggestionOutcome(
+                        "Function Call Rename", oldName + " -> " + newName, false, "Function not found"));
+                    continue;
+                }
+                
+                // Guard: skip if already user-named (F_, M_, MV_ prefix)
+                String currentName = targetFunc.getName();
+                if (currentName.startsWith("F_") || currentName.startsWith("M_") || currentName.startsWith("MV_")) {
+                    result.suggestionOutcomes.add(new SuggestionOutcome(
+                        "Function Call Rename", oldName + " -> " + newName, false, "Already user-renamed"));
+                    continue;
+                }
+                
+                // Normalize: prefix + PascalCase
+                String normalized = prefix + normalizeToPascalCase(newName);
+                
+                try {
+                    targetFunc.setName(normalized, SourceType.USER_DEFINED);
+                    funcRenameCount++;
+                    result.suggestionOutcomes.add(new SuggestionOutcome(
+                        "Function Call Rename", oldName + " -> " + normalized, true, null));
+                } catch (DuplicateNameException | InvalidInputException e) {
+                    result.suggestionOutcomes.add(new SuggestionOutcome(
+                        "Function Call Rename", oldName + " -> " + normalized, false, e.getMessage()));
+                }
+                currentChange++;
+                lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
+            }
+            
             success = true;
             
             // Build result message
@@ -1320,7 +1487,11 @@ public class FunctionRewrite {
                 message.append("Successfully updated types for ").append(globalTypeCount).append(" global(s)\n");
             }
             
-            if (!result.functionRenamed && renameCount == 0 && fieldRenameCount == 0 && typeCount == 0 && fieldTypeCount == 0 && commentCount == 0 && globalRenameCount == 0 && globalTypeCount == 0 && spec.functionPrototype == null) {
+            if (funcRenameCount > 0) {
+                message.append("Successfully renamed ").append(funcRenameCount).append(" called function(s)\n");
+            }
+            
+            if (!result.functionRenamed && renameCount == 0 && fieldRenameCount == 0 && typeCount == 0 && fieldTypeCount == 0 && commentCount == 0 && globalRenameCount == 0 && globalTypeCount == 0 && funcRenameCount == 0 && spec.functionPrototype == null) {
                 message.append("No changes were applied");
             }
             
@@ -1782,6 +1953,54 @@ public class FunctionRewrite {
         }
         // Otherwise ensure first char is lowercase (PascalCase -> camelCase)
         return Character.toLowerCase(name.charAt(0)) + name.substring(1);
+    }
+    
+    private String normalizeToPascalCase(String name) {
+        if (name == null || name.isEmpty()) return name;
+        // Strip any prefix the model may have added
+        if (name.startsWith("M_") || name.startsWith("F_") || name.startsWith("MV_")) {
+            name = name.substring(name.indexOf('_') + 1);
+        }
+        if (name.startsWith("m_") || name.startsWith("g_")) {
+            name = name.substring(2);
+        }
+        if (name.isEmpty()) return name;
+        // If it contains underscores, treat as snake_case -> PascalCase
+        if (name.contains("_")) {
+            StringBuilder sb = new StringBuilder();
+            boolean capitalizeNext = true;
+            for (int i = 0; i < name.length(); i++) {
+                char c = name.charAt(i);
+                if (c == '_') {
+                    capitalizeNext = true;
+                } else {
+                    if (capitalizeNext) {
+                        sb.append(Character.toUpperCase(c));
+                        capitalizeNext = false;
+                    } else {
+                        sb.append(c);
+                    }
+                }
+            }
+            return sb.toString();
+        }
+        // Otherwise ensure first char is uppercase (camelCase -> PascalCase)
+        return Character.toUpperCase(name.charAt(0)) + name.substring(1);
+    }
+    
+    /**
+     * Normalize common type names: uppercase variants to lowercase (INT->int, FLOAT->float, etc.)
+     */
+    private void normalizeTypeValues(Map<String, String> typeMap) {
+        for (Map.Entry<String, String> entry : typeMap.entrySet()) {
+            String val = entry.getValue();
+            if (val == null) continue;
+            String lower = val.trim();
+            // Only normalize bare single-word types that are all-caps
+            if (lower.equals(lower.toUpperCase()) && lower.matches("[A-Z]+")) {
+                entry.setValue(lower.toLowerCase());
+            }
+        }
     }
     
     /**
@@ -2663,6 +2882,7 @@ public class FunctionRewrite {
         Map<String, String> comments = new HashMap<>();
         Map<String, String> globalRenames = new HashMap<>();
         Map<String, String> globalTypes = new HashMap<>();
+        Map<String, String> functionRenames = new HashMap<>();
     }
     
     /**
