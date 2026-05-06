@@ -868,6 +868,10 @@ public class FunctionRewrite {
                         case "global_types":
                             parseJsonObjectFirstWins(parser, spec.globalTypes);
                             break;
+                        case "field_renames":
+                            // Model sometimes puts field renames in a separate key; merge into variableRenames
+                            parseJsonObjectFirstWins(parser, spec.variableRenames);
+                            break;
                         default:
                             skipValue(parser);
                             break;
@@ -1090,6 +1094,20 @@ public class FunctionRewrite {
             
             // Handle member field renames and 'this' separately
             Msg.info(this, "Field rename loop: spec.variableRenames has " + spec.variableRenames.size() + " entries");
+            
+            // Pre-collect all field rename offsets (sorted) so we can compute max size per field
+            List<Integer> fieldOffsets = new ArrayList<>();
+            Pattern offsetPat = Pattern.compile("0x([0-9a-fA-F]+)");
+            for (String key : spec.variableRenames.keySet()) {
+                if (isMemberFieldName(key) && !key.startsWith("m_")) {
+                    Matcher m = offsetPat.matcher(key);
+                    if (m.find()) {
+                        fieldOffsets.add(Integer.parseInt(m.group(1), 16));
+                    }
+                }
+            }
+            java.util.Collections.sort(fieldOffsets);
+            
             for (Map.Entry<String, String> rename : spec.variableRenames.entrySet()) {
                 if (monitor.isCancelled()) break;
                 String oldName = rename.getKey();
@@ -1119,7 +1137,17 @@ public class FunctionRewrite {
                 if (!newName.startsWith("m_")) {
                     newName = "m_" + newName;
                 }
-                if (applyMemberFieldRename(function, program, oldName, newName)) {
+                // Compute max size from distance to next known field offset
+                int maxSize = 8; // default cap
+                Matcher om = offsetPat.matcher(oldName);
+                if (om.find()) {
+                    int thisOffset = Integer.parseInt(om.group(1), 16);
+                    int idx = java.util.Collections.binarySearch(fieldOffsets, thisOffset);
+                    if (idx >= 0 && idx + 1 < fieldOffsets.size()) {
+                        maxSize = fieldOffsets.get(idx + 1) - thisOffset;
+                    }
+                }
+                if (applyMemberFieldRename(function, program, oldName, newName, maxSize)) {
                     fieldRenameCount++;
                     result.variableRenames.put(oldName, newName);
                     result.suggestionOutcomes.add(new SuggestionOutcome("Field Rename", oldName + " \u2192 " + newName, true, null));
@@ -1717,7 +1745,7 @@ public class FunctionRewrite {
      * since fields like field9_0x60 may live on a nested struct (e.g. this->m_viewStuff.field9_0x60).
      * Falls back to offset-based lookup on the top-level struct if name search fails.
      */
-    private boolean applyMemberFieldRename(Function function, Program program, String oldName, String newName) {
+    private boolean applyMemberFieldRename(Function function, Program program, String oldName, String newName, int maxSize) {
         try {
             // Get the 'this' parameter's struct type
             Parameter[] params = function.getParameters();
@@ -1803,9 +1831,9 @@ public class FunctionRewrite {
                                     }
                                 }
                                 int size = 1;
-                                if (consecutiveUndefined >= 8) size = 8;
-                                else if (consecutiveUndefined >= 4) size = 4;
-                                else if (consecutiveUndefined >= 2) size = 2;
+                                if (consecutiveUndefined >= 8 && maxSize >= 8) size = 8;
+                                else if (consecutiveUndefined >= 4 && maxSize >= 4) size = 4;
+                                else if (consecutiveUndefined >= 2 && maxSize >= 2) size = 2;
 
                                 if (size > 1) {
                                     DataType undefinedN = ghidra.program.model.data.Undefined.getUndefinedDataType(size);
