@@ -31,7 +31,7 @@ public class APIClient {
     
     // Default configuration constants
     public static final int DEFAULT_TIMEOUT_SECONDS = 30;
-    public static final int DEFAULT_MAX_TOKENS = 4000;
+    public static final int DEFAULT_MAX_TOKENS = 16384;
     public static final double DEFAULT_TEMPERATURE = 0.1;
     
     private OkHttpClient httpClient;
@@ -636,6 +636,7 @@ public class APIClient {
         );
         request.stream = true;
         request.think = false;
+        request.options = Map.of("num_predict", maxTokens);
         
         String jsonRequest = objectMapper.writeValueAsString(request);
         
@@ -1358,6 +1359,7 @@ public class APIClient {
         public List<OllamaMessage> messages;
         public boolean stream = false;
         public Boolean think;
+        public Map<String, Object> options;
     }
     
     @JsonIgnoreProperties(ignoreUnknown = true)

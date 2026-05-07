@@ -28,6 +28,7 @@ public class ConfigurationManager {
     private static final String PRINT_REWRITE_SUMMARY_PROPERTY = "rewrite.print.summary";
     private static final String DEBUG_MODE_PROPERTY = "rewrite.debug.mode";
     private static final String DEBUG_PATH_PROPERTY = "rewrite.debug.path";
+    private static final String DEBUG_FILE_PROPERTY = "rewrite.debug.file";
     
     // XOR key for API key obfuscation, not super secure but still better than plaintext
     private static final String XOR_KEY = "GhidraGPT_Sec3@Key_9f4e7a2b#8c1d6f0a@2025!";
@@ -286,6 +287,14 @@ public class ConfigurationManager {
     
     public void setDebugPath(String path) {
         properties.setProperty(DEBUG_PATH_PROPERTY, path != null ? path : "");
+    }
+
+    public String getDebugFile() {
+        return properties.getProperty(DEBUG_FILE_PROPERTY, "");
+    }
+
+    public void setDebugFile(String file) {
+        properties.setProperty(DEBUG_FILE_PROPERTY, file != null ? file : "");
     }
     
     /**

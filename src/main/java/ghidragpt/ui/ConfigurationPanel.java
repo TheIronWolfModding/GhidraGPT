@@ -34,6 +34,7 @@ public class ConfigurationPanel extends JPanel {
     private final JRadioButton debugSaveRadio;
     private final JRadioButton debugLoadRadio;
     private final JTextField debugPathField;
+    private final JTextField debugFileField;
     private final JTextArea customInstructionsArea;
     
     public ConfigurationPanel(APIClient apiClient) {
@@ -161,10 +162,17 @@ public class ConfigurationPanel extends JPanel {
         debugGroup.add(debugLoadRadio);
         
         debugPathField = new JTextField(15);
-        debugPathField.setToolTipText("Folder for debug save/load files (e.g. e:\\\\temp)");
+        debugPathField.setToolTipText("Folder for debug save/load files (e.g. D:\\\\Temp\\\\ghidra)");
         debugPathField.setEnabled(false);
         
-        ActionListener debugRadioListener = e -> debugPathField.setEnabled(!debugOffRadio.isSelected());
+        debugFileField = new JTextField(20);
+        debugFileField.setToolTipText("Response filename to load (e.g. FuncName-20260506_112024-response)");
+        debugFileField.setEnabled(false);
+        
+        ActionListener debugRadioListener = e -> {
+            debugPathField.setEnabled(!debugOffRadio.isSelected());
+            debugFileField.setEnabled(debugLoadRadio.isSelected());
+        };
         debugOffRadio.addActionListener(debugRadioListener);
         debugSaveRadio.addActionListener(debugRadioListener);
         debugLoadRadio.addActionListener(debugRadioListener);
@@ -175,6 +183,8 @@ public class ConfigurationPanel extends JPanel {
         debugPanel.add(debugSaveRadio);
         debugPanel.add(debugLoadRadio);
         debugPanel.add(debugPathField);
+        debugPanel.add(new JLabel("File:"));
+        debugPanel.add(debugFileField);
         gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         add(debugPanel, gbc);
@@ -262,6 +272,8 @@ public class ConfigurationPanel extends JPanel {
         debugLoadRadio.setSelected("load".equals(debugMode));
         debugPathField.setText(configManager.getDebugPath());
         debugPathField.setEnabled(!"off".equals(debugMode));
+        debugFileField.setText(configManager.getDebugFile());
+        debugFileField.setEnabled("load".equals(debugMode));
         customInstructionsArea.setText(configManager.getCustomInstructions());
         
         // Update visibility of custom URL field
@@ -373,6 +385,7 @@ public class ConfigurationPanel extends JPanel {
         configManager.setPrintRewriteSummary(printRewriteSummaryCheckbox.isSelected());
         configManager.setDebugMode(debugSaveRadio.isSelected() ? "save" : debugLoadRadio.isSelected() ? "load" : "off");
         configManager.setDebugPath(debugPathField.getText().trim());
+        configManager.setDebugFile(debugFileField.getText().trim());
         configManager.setCustomInstructions(customInstructionsArea.getText());
         configManager.saveConfiguration();
         

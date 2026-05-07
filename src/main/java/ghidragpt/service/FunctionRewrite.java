@@ -155,19 +155,30 @@ public class FunctionRewrite {
             
             if (isDebugLoad) {
                 // Load response from file instead of calling LLM
-                String debugPath = configManager.getDebugPath();
-                if (debugPath == null || debugPath.trim().isEmpty()) {
-                    result.errors.add("Debug Load mode requires a response file path");
+                String debugDir = configManager.getDebugPath();
+                String debugFile = configManager.getDebugFile();
+                if (debugDir == null || debugDir.trim().isEmpty()) {
+                    result.errors.add("Debug Load mode requires a directory path");
                     return result;
                 }
-                File responseFile = new File(debugPath.trim());
+                String filePath;
+                if (debugFile != null && !debugFile.trim().isEmpty()) {
+                    String dir = debugDir.trim();
+                    if (!dir.endsWith(File.separator) && !dir.endsWith("/")) {
+                        dir = dir + File.separator;
+                    }
+                    filePath = dir + debugFile.trim();
+                } else {
+                    filePath = debugDir.trim();
+                }
+                File responseFile = new File(filePath);
                 if (!responseFile.exists()) {
-                    result.errors.add("Debug response file not found: " + debugPath);
+                    result.errors.add("Debug response file not found: " + filePath);
                     return result;
                 }
                 aiResponse = new String(java.nio.file.Files.readAllBytes(responseFile.toPath()), java.nio.charset.StandardCharsets.UTF_8);
                 if (console != null) {
-                    console.appendInfo("[Debug] Loaded response from: " + debugPath + " (" + aiResponse.length() + " chars)");
+                    console.appendInfo("[Debug] Loaded response from: " + filePath + " (" + aiResponse.length() + " chars)");
                 }
             } else {
                 // Normal LLM call
@@ -962,7 +973,8 @@ public class FunctionRewrite {
                 if (parser.nextToken() != JsonToken.START_OBJECT) {
                     throw new Exception("Expected JSON object");
                 }
-                while (parser.nextToken() != JsonToken.END_OBJECT) {
+                JsonToken token;
+                while ((token = parser.nextToken()) != null && token != JsonToken.END_OBJECT) {
                     String fieldName = parser.getCurrentName();
                     parser.nextToken(); // move to value
                     
@@ -1006,23 +1018,24 @@ public class FunctionRewrite {
                     }
                 }
             }
-            
-            // Normalize keys: strip "this->" prefix so struct field refs route to field handlers
-            spec.variableRenames = stripThisPrefix(spec.variableRenames);
-            spec.variableTypes = stripThisPrefix(spec.variableTypes);
-            
-            // Normalize type values: INT->int, FLOAT->float, BOOL->bool, etc.
-            normalizeTypeValues(spec.variableTypes);
-            normalizeTypeValues(spec.globalTypes);
-
         } catch (Exception e) {
-            Msg.error(this, "Failed to parse JSON response: " + e.getMessage());
-            // Fallback to text parsing
-            EnhancementSuggestions fallback = parseEnhancementResponse(jsonStr);
-            spec.functionName = fallback.functionName;
-            spec.variableRenames = fallback.variableRenames;
-            spec.variableTypes = fallback.typeHints;
+            // Truncated JSON: keep whatever was successfully parsed so far
+            spec.truncated = true;
+            Msg.warn(this, "JSON parse incomplete (truncated response?): " + e.getMessage() +
+                " -- using " + spec.variableRenames.size() + " variable renames, " +
+                spec.comments.size() + " comments, " + spec.globalRenames.size() + " global renames parsed so far");
         }
+
+        // Normalize keys: strip "this->" prefix so struct field refs route to field handlers
+        spec.variableRenames = stripThisPrefix(spec.variableRenames);
+        spec.variableTypes = stripThisPrefix(spec.variableTypes);
+        
+        // Normalize type values: INT->int, FLOAT->float, BOOL->bool, etc.
+        normalizeTypeValues(spec.variableTypes);
+        normalizeTypeValues(spec.globalTypes);
+
+        // Normalize function rename values: replace :: with _ (Ghidra doesn't allow :: in names)
+        spec.functionRenames.replaceAll((k, v) -> v.replace("::", "_"));
 
         return spec;
     }
@@ -1033,9 +1046,11 @@ public class FunctionRewrite {
      */
     private void parseJsonObjectFirstWins(JsonParser parser, Map<String, String> target) throws Exception {
         if (parser.currentToken() != JsonToken.START_OBJECT) return;
-        while (parser.nextToken() != JsonToken.END_OBJECT) {
+        JsonToken token;
+        while ((token = parser.nextToken()) != null && token != JsonToken.END_OBJECT) {
             String key = parser.getCurrentName();
-            parser.nextToken();
+            token = parser.nextToken();
+            if (token == null) break;
             String value = parser.getValueAsString();
             target.putIfAbsent(key, value);
         }
@@ -1226,7 +1241,11 @@ public class FunctionRewrite {
             }
             
             // Handle member field renames and 'this' separately
-            Msg.info(this, "Field rename loop: spec.variableRenames has " + spec.variableRenames.size() + " entries");
+            int fieldCount = 0;
+            for (Map.Entry<String, String> e : spec.variableRenames.entrySet()) {
+                if (isMemberFieldName(e.getKey()) && !e.getKey().startsWith("m_")) fieldCount++;
+            }
+            Msg.info(this, "Field rename loop: spec.variableRenames has " + spec.variableRenames.size() + " entries, " + fieldCount + " are unnamed fields");
             
             // Pre-collect all field rename offsets (sorted) so we can compute max size per field
             List<Integer> fieldOffsets = new ArrayList<>();
@@ -1608,6 +1627,9 @@ public class FunctionRewrite {
                 }
             }
             
+            if (spec.truncated) {
+                lines.add(new String[]{"FAIL", "[ERROR] Response was truncated -- some suggestions may be missing. Increase Max Tokens in settings."});
+            }
             console.printSuggestionSummary(function.getName(), lines);
         }
         
@@ -2086,6 +2108,7 @@ public class FunctionRewrite {
      */
     private boolean applyMemberFieldRename(Function function, Program program, String oldName, String newName, int maxSize, Map<String, VariableInfo> variableMap) {
         try {
+            Msg.info(this, "applyMemberFieldRename called: " + oldName + " -> " + newName + " (maxSize=" + maxSize + ")");
             // Collect struct types from ALL pointer-to-struct variables (params + locals + decompiler-inferred)
             Set<String> seen = new HashSet<>();
             List<Structure> candidateStructs = new ArrayList<>();
@@ -2121,8 +2144,12 @@ public class FunctionRewrite {
             }
             
             if (candidateStructs.isEmpty()) {
+                Msg.warn(this, "applyMemberFieldRename " + oldName + ": no candidate structs found");
                 return false;
             }
+            
+            Msg.info(this, "applyMemberFieldRename " + oldName + ": " + candidateStructs.size() + " candidates: " +
+                candidateStructs.stream().map(s -> s.getName() + "(len=" + s.getLength() + ")").collect(java.util.stream.Collectors.joining(", ")));
             
             // Try each candidate struct
             for (Structure topStruct : candidateStructs) {
@@ -2174,6 +2201,7 @@ public class FunctionRewrite {
                 
                 // Skip if offset is beyond this struct's size (probably belongs to another struct)
                 if (fieldOffset >= topStruct.getLength()) {
+                    Msg.info(this, "tryRenameFieldOnStruct " + oldName + ": offset 0x" + Integer.toHexString(fieldOffset) + " beyond " + topStruct.getName() + " length " + topStruct.getLength());
                     return false;
                 }
                 
@@ -2214,6 +2242,8 @@ public class FunctionRewrite {
                             Msg.warn(this, "Duplicate field name: " + newName + " on struct " + topStruct.getName());
                             return false;
                         }
+                    } else {
+                        Msg.info(this, "tryRenameFieldOnStruct " + oldName + ": field at offset already named '" + currentFieldName + "' on " + topStruct.getName());
                     }
                 }
                 
@@ -2981,6 +3011,7 @@ public class FunctionRewrite {
         Map<String, String> globalTypes = new HashMap<>();
         Map<String, String> functionRenames = new HashMap<>();
         Map<String, String> classSuggestions = new HashMap<>();
+        boolean truncated = false;
     }
     
     /**
