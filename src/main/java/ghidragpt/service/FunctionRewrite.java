@@ -300,6 +300,11 @@ public class FunctionRewrite {
                         extraLines.append(" | TRUNCATED");
                     }
                     extraLines.append("\n");
+                    if (stats.promptTokens >= apiClient.getContextSize()) {
+                        extraLines.append("  !! Prompt truncated to fit context (")
+                            .append(apiClient.getContextSize())
+                            .append(") -- increase context size\n");
+                    }
                 }
                 if (debugPrefix != null) {
                     extraLines.append("Saved prompt and response to: ").append(debugPrefix).append("-*\n");

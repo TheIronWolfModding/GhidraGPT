@@ -23,7 +23,7 @@ public class ConfigurationPanel extends JPanel {
     private final JTextField customApiUrlField;
     private final JLabel customApiUrlLabel;
     private final JSpinner maxTokensSpinner;
-    private final JSpinner contextSizeSpinner;
+    private final JComboBox<Integer> contextSizeCombo;
     private final JSpinner temperatureSpinner;
     private final JSpinner timeoutSpinner;
     private final JButton testButton;
@@ -108,9 +108,24 @@ public class ConfigurationPanel extends JPanel {
         gbc.gridx = 0; gbc.gridy = 5; gbc.fill = GridBagConstraints.NONE;
         add(new JLabel("Context Size:"), gbc);
         
-        contextSizeSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_CONTEXT_SIZE, 2048, 131072, 1024));
+        Integer[] contextSizes = new Integer[16];
+        for (int i = 0; i < 16; i++) {
+            contextSizes[i] = (i + 1) * 16384;
+        }
+        contextSizeCombo = new JComboBox<>(contextSizes);
+        contextSizeCombo.setSelectedItem(APIClient.DEFAULT_CONTEXT_SIZE);
+        contextSizeCombo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public java.awt.Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean sel, boolean focus) {
+                super.getListCellRendererComponent(list, value, index, sel, focus);
+                if (value instanceof Integer) {
+                    setText(((Integer) value / 1024) + "k");
+                }
+                return this;
+            }
+        });
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        add(contextSizeSpinner, gbc);
+        add(contextSizeCombo, gbc);
         
         // Temperature
         gbc.gridx = 0; gbc.gridy = 6; gbc.fill = GridBagConstraints.NONE;
@@ -270,7 +285,7 @@ public class ConfigurationPanel extends JPanel {
         modelCombo.setSelectedItem(configManager.getModel());
         customApiUrlField.setText(configManager.getCustomApiUrl());
         maxTokensSpinner.setValue(configManager.getMaxTokens());
-        contextSizeSpinner.setValue(configManager.getContextSize());
+        contextSizeCombo.setSelectedItem(configManager.getContextSize());
         temperatureSpinner.setValue(configManager.getTemperature());
         timeoutSpinner.setValue(configManager.getTimeoutSeconds());
         applyFunctionRenameCheckbox.setSelected(configManager.isApplyFunctionRename());
@@ -388,7 +403,7 @@ public class ConfigurationPanel extends JPanel {
         configManager.setModel(getSelectedModel());
         configManager.setCustomApiUrl(customApiUrl);
         configManager.setMaxTokens((Integer) maxTokensSpinner.getValue());
-        configManager.setContextSize((Integer) contextSizeSpinner.getValue());
+        configManager.setContextSize((Integer) contextSizeCombo.getSelectedItem());
         configManager.setTemperature((Double) temperatureSpinner.getValue());
         configManager.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
         configManager.setApplyFunctionRename(applyFunctionRenameCheckbox.isSelected());
@@ -406,7 +421,7 @@ public class ConfigurationPanel extends JPanel {
         apiClient.setModel(getSelectedModel());
         apiClient.setCustomApiUrl(customApiUrl);
         apiClient.setMaxTokens((Integer) maxTokensSpinner.getValue());
-        apiClient.setContextSize((Integer) contextSizeSpinner.getValue());
+        apiClient.setContextSize((Integer) contextSizeCombo.getSelectedItem());
         apiClient.setTemperature((Double) temperatureSpinner.getValue());
         apiClient.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
         
