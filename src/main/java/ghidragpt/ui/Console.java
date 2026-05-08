@@ -305,16 +305,34 @@ public class Console extends JPanel {
     }
 
     public void printStreamComplete(String operation, long duration, int promptLength, int responseLength) {
+        printStreamComplete(operation, duration, promptLength, responseLength, null);
+    }
+
+    public void printStreamComplete(String operation, long duration, int promptLength, int responseLength, String extraLines) {
         try {
-            String footer = "\n└─────────────────────────────────────────────────────────┘\n" +
-                           "√ " + operation + " completed in " + duration + "ms\n" +
-                           "  " + promptLength + " prompt / " + responseLength + " response bytes\n" +
-                           "═".repeat(65) + "\n";
-            document.insertString(document.getLength(), footer, textPane.getStyle("success"));
+            StringBuilder footer = new StringBuilder();
+            footer.append("\n└─────────────────────────────────────────────────────────┘\n");
+            footer.append("√ ").append(operation).append(" completed in ").append(duration).append("ms\n");
+            footer.append("  ").append(promptLength).append(" prompt / ").append(responseLength).append(" response bytes\n");
+            if (extraLines != null) {
+                footer.append(extraLines);
+            }
+            footer.append("═".repeat(65)).append("\n");
+            document.insertString(document.getLength(), footer.toString(), textPane.getStyle("success"));
             textPane.setCaretPosition(document.getLength());
             scrollPane.getVerticalScrollBar().setValue(scrollPane.getVerticalScrollBar().getMaximum());
         } catch (BadLocationException e) {
             appendMessage("Stream", operation + " completed in " + duration + "ms", MessageType.SUCCESS);
+        }
+    }
+
+    public void printSeparator() {
+        try {
+            document.insertString(document.getLength(), "═".repeat(65) + "\n", textPane.getStyle("success"));
+            textPane.setCaretPosition(document.getLength());
+            scrollPane.getVerticalScrollBar().setValue(scrollPane.getVerticalScrollBar().getMaximum());
+        } catch (BadLocationException e) {
+            // ignore
         }
     }
     

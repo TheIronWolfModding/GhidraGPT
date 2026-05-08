@@ -189,8 +189,8 @@ public class FunctionRewrite {
                     if (console != null) {
                         console.printAnalysisHeader("Comprehensive Function Rewrite", function.getName(), 
                             provider.toString(), apiClient.getModel(), enhancementPrompt.length());
-                        console.appendInfo("Options: temperature=" + apiClient.getTemperature() + 
-                            " max_tokens=" + apiClient.getMaxTokens() + " context=" + apiClient.getContextSize());
+                        console.appendInfo(String.format("Options: temperature=%.2f max_tokens=%d context=%d",
+                            apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize()));
                     }
                     
                     final StringBuilder streamBuffer = new StringBuilder();
@@ -277,9 +277,6 @@ public class FunctionRewrite {
                         try (FileWriter fw = new FileWriter(responseFile)) {
                             fw.write(aiResponse);
                         }
-                        if (console != null) {
-                            console.appendInfo("Saved prompt and response to: " + debugPrefix + "-*");
-                        }
                     } catch (IOException ioEx) {
                         if (console != null) {
                             console.appendInfo("Failed to save debug files: " + ioEx.getMessage());
@@ -294,18 +291,22 @@ public class FunctionRewrite {
             // Now that JSON parsing is successful, print the completion message
             long duration = System.currentTimeMillis() - startTime;
             if (console != null) {
-                console.printStreamComplete("model analysis", duration,
-                    enhancementPrompt.length(), aiResponse.length());
-                
+                StringBuilder extraLines = new StringBuilder();
                 APIClient.OllamaRequestStats stats = apiClient.getLastOllamaStats();
                 if (stats != null) {
-                    String tokenLine = String.format("  %d prompt / %d output tokens | %.1f tok/s",
-                        stats.promptTokens, stats.outputTokens, stats.tokensPerSecond);
+                    extraLines.append(String.format("  %d prompt / %d output tokens | %.1f tok/s",
+                        stats.promptTokens, stats.outputTokens, stats.tokensPerSecond));
                     if (!"stop".equals(stats.doneReason)) {
-                        tokenLine += " | TRUNCATED";
+                        extraLines.append(" | TRUNCATED");
                     }
-                    console.appendInfo(tokenLine);
+                    extraLines.append("\n");
                 }
+                if (debugPrefix != null) {
+                    extraLines.append("Saved prompt and response to: ").append(debugPrefix).append("-*\n");
+                }
+                console.printStreamComplete("model analysis", duration,
+                    enhancementPrompt.length(), aiResponse.length(),
+                    extraLines.length() > 0 ? extraLines.toString() : null);
             }
             
             monitor.setMessage("Applying comprehensive function rewrite...");
