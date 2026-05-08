@@ -301,9 +301,14 @@ public class Console extends JPanel {
      * Print stream completion message
      */
     public void printStreamComplete(String operation, long duration, int responseLength) {
+        printStreamComplete(operation, duration, 0, responseLength);
+    }
+
+    public void printStreamComplete(String operation, long duration, int promptLength, int responseLength) {
         try {
             String footer = "\n└─────────────────────────────────────────────────────────┘\n" +
-                           "√ " + operation + " completed in " + duration + "ms (" + responseLength + " characters)\n" +
+                           "√ " + operation + " completed in " + duration + "ms\n" +
+                           "  " + promptLength + " prompt / " + responseLength + " response bytes\n" +
                            "═".repeat(65) + "\n";
             document.insertString(document.getLength(), footer, textPane.getStyle("success"));
             textPane.setCaretPosition(document.getLength());

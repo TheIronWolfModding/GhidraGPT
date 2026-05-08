@@ -48,6 +48,27 @@ public class APIClient {
     private double temperature = DEFAULT_TEMPERATURE;
     private int timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
     
+    // Last Ollama request stats
+    private volatile OllamaRequestStats lastOllamaStats;
+
+    public static class OllamaRequestStats {
+        public final int promptTokens;
+        public final int outputTokens;
+        public final String doneReason;
+        public final double tokensPerSecond;
+
+        public OllamaRequestStats(int promptTokens, int outputTokens, String doneReason, double tokensPerSecond) {
+            this.promptTokens = promptTokens;
+            this.outputTokens = outputTokens;
+            this.doneReason = doneReason;
+            this.tokensPerSecond = tokensPerSecond;
+        }
+    }
+
+    public OllamaRequestStats getLastOllamaStats() {
+        return lastOllamaStats;
+    }
+
     public enum GPTProvider {
         OPENAI, ANTHROPIC, GEMINI, COHERE, MISTRAL, DEEPSEEK, GROK, OLLAMA, OPENAI_COMPATIBLE
     }
@@ -646,7 +667,13 @@ public class APIClient {
         );
         request.stream = true;
         request.think = false;
-        request.options = Map.of("num_predict", maxTokens, "num_ctx", contextSize, "temperature", temperature);
+        request.options = new java.util.HashMap<>(Map.of(
+            "num_predict", maxTokens,
+            "num_ctx", contextSize,
+            "temperature", temperature,
+            "repeat_penalty", 1.3,
+            "repeat_last_n", 256
+        ));
         
         String jsonRequest = objectMapper.writeValueAsString(request);
         Msg.info(this, "Ollama request: model=" + request.model + " num_predict=" + maxTokens + " num_ctx=" + contextSize + " temperature=" + temperature);
@@ -690,6 +717,15 @@ public class APIClient {
                             
                             // Check if this is the final message
                             if (streamResponse.done != null && streamResponse.done) {
+                                if (streamResponse.promptEvalCount != null && streamResponse.evalCount != null) {
+                                    double tps = 0;
+                                    if (streamResponse.evalDuration != null && streamResponse.evalDuration > 0) {
+                                        tps = streamResponse.evalCount * 1_000_000_000.0 / streamResponse.evalDuration;
+                                    }
+                                    lastOllamaStats = new OllamaRequestStats(
+                                        streamResponse.promptEvalCount, streamResponse.evalCount,
+                                        streamResponse.doneReason, tps);
+                                }
                                 break;
                             }
                         } catch (Exception e) {
@@ -1391,6 +1427,10 @@ public class APIClient {
         public String model;
         public OllamaMessage message;
         public Boolean done;
+        @JsonProperty("done_reason") public String doneReason;
+        @JsonProperty("prompt_eval_count") public Integer promptEvalCount;
+        @JsonProperty("eval_count") public Integer evalCount;
+        @JsonProperty("eval_duration") public Long evalDuration;
     }
     
     // Models List API DTOs

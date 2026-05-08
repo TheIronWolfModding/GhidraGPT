@@ -100,7 +100,7 @@ public class ConfigurationPanel extends JPanel {
         gbc.gridx = 0; gbc.gridy = 4; gbc.fill = GridBagConstraints.NONE;
         add(new JLabel("Max Tokens:"), gbc);
         
-        maxTokensSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_MAX_TOKENS, 100, 32000, 100));
+        maxTokensSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_MAX_TOKENS, 100, 131072, 1024));
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
         add(maxTokensSpinner, gbc);
         

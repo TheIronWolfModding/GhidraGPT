@@ -294,7 +294,18 @@ public class FunctionRewrite {
             // Now that JSON parsing is successful, print the completion message
             long duration = System.currentTimeMillis() - startTime;
             if (console != null) {
-                console.printStreamComplete("model analysis", duration, aiResponse.length());
+                console.printStreamComplete("model analysis", duration,
+                    enhancementPrompt.length(), aiResponse.length());
+                
+                APIClient.OllamaRequestStats stats = apiClient.getLastOllamaStats();
+                if (stats != null) {
+                    String tokenLine = String.format("  %d prompt / %d output tokens | %.1f tok/s",
+                        stats.promptTokens, stats.outputTokens, stats.tokensPerSecond);
+                    if (!"stop".equals(stats.doneReason)) {
+                        tokenLine += " | TRUNCATED";
+                    }
+                    console.appendInfo(tokenLine);
+                }
             }
             
             monitor.setMessage("Applying comprehensive function rewrite...");
