@@ -23,6 +23,7 @@ public class ConfigurationPanel extends JPanel {
     private final JTextField customApiUrlField;
     private final JLabel customApiUrlLabel;
     private final JSpinner maxTokensSpinner;
+    private final JSpinner contextSizeSpinner;
     private final JSpinner temperatureSpinner;
     private final JSpinner timeoutSpinner;
     private final JButton testButton;
@@ -103,8 +104,16 @@ public class ConfigurationPanel extends JPanel {
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
         add(maxTokensSpinner, gbc);
         
-        // Temperature
+        // Context Size
         gbc.gridx = 0; gbc.gridy = 5; gbc.fill = GridBagConstraints.NONE;
+        add(new JLabel("Context Size:"), gbc);
+        
+        contextSizeSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_CONTEXT_SIZE, 2048, 131072, 1024));
+        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
+        add(contextSizeSpinner, gbc);
+        
+        // Temperature
+        gbc.gridx = 0; gbc.gridy = 6; gbc.fill = GridBagConstraints.NONE;
         add(new JLabel("Temperature:"), gbc);
         
         temperatureSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_TEMPERATURE, 0.0, 2.0, 0.1));
@@ -112,7 +121,7 @@ public class ConfigurationPanel extends JPanel {
         add(temperatureSpinner, gbc);
         
         // Timeout
-        gbc.gridx = 0; gbc.gridy = 6; gbc.fill = GridBagConstraints.NONE;
+        gbc.gridx = 0; gbc.gridy = 7; gbc.fill = GridBagConstraints.NONE;
         add(new JLabel("Timeout (seconds):"), gbc);
         
         timeoutSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_TIMEOUT_SECONDS, 5, 300, 5));
@@ -120,34 +129,34 @@ public class ConfigurationPanel extends JPanel {
         add(timeoutSpinner, gbc);
         
         // Rewrite Options separator
-        gbc.gridx = 0; gbc.gridy = 7; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 8; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(10, 5, 2, 5);
         JSeparator separator = new JSeparator();
         add(separator, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 8; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         add(new JLabel("Rewrite Options:"), gbc);
         
         // Apply Function Rename checkbox
         applyFunctionRenameCheckbox = new JCheckBox("Apply function renames");
         applyFunctionRenameCheckbox.setToolTipText("Allow GhidraGPT to rename functions based on analysis");
-        gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         add(applyFunctionRenameCheckbox, gbc);
         
         // Apply Function Prototype checkbox
         applyFunctionPrototypeCheckbox = new JCheckBox("Apply function prototypes");
         applyFunctionPrototypeCheckbox.setToolTipText("Allow GhidraGPT to update function signatures (return type, parameters)");
-        gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         add(applyFunctionPrototypeCheckbox, gbc);
         
         // Print Suggestion Summary checkbox
         printRewriteSummaryCheckbox = new JCheckBox("Print rewrite summary");
         printRewriteSummaryCheckbox.setToolTipText("Print per-suggestion success/failure summary to console after rewrite");
-        gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         add(printRewriteSummaryCheckbox, gbc);
         
@@ -185,12 +194,12 @@ public class ConfigurationPanel extends JPanel {
         debugPanel.add(debugPathField);
         debugPanel.add(new JLabel("File:"));
         debugPanel.add(debugFileField);
-        gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         add(debugPanel, gbc);
         
         // Custom Prompt Instructions
-        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
         add(new JLabel("Custom Prompt Instructions:"), gbc);
         
@@ -200,7 +209,7 @@ public class ConfigurationPanel extends JPanel {
         customInstructionsArea.setToolTipText("Extra instructions appended to the LLM prompt (e.g. 'Always use camelCase names')");
         JScrollPane scrollPane = new JScrollPane(customInstructionsArea);
         scrollPane.setPreferredSize(new Dimension(300, 60));
-        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 5, 5, 5);
         add(scrollPane, gbc);
@@ -219,7 +228,7 @@ public class ConfigurationPanel extends JPanel {
         buttonPanel.add(saveButton);
         
         // Add centered button panel
-        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.CENTER;
         gbc.insets = new Insets(10, 5, 5, 5);
@@ -229,7 +238,7 @@ public class ConfigurationPanel extends JPanel {
         // Status label
         statusLabel = new JLabel("Not configured");
         statusLabel.setForeground(Color.RED);
-        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.anchor = GridBagConstraints.CENTER;
         gbc.insets = new Insets(5, 5, 10, 5);
@@ -239,7 +248,7 @@ public class ConfigurationPanel extends JPanel {
         // Vertical spacer to push everything to the top when panel height increases
         JPanel spacer = new JPanel();
         spacer.setOpaque(false);
-        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 18; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.weighty = 1.0; // Take up all extra vertical space
         gbc.weightx = 1.0; // Take up all extra horizontal space
@@ -261,6 +270,7 @@ public class ConfigurationPanel extends JPanel {
         modelCombo.setSelectedItem(configManager.getModel());
         customApiUrlField.setText(configManager.getCustomApiUrl());
         maxTokensSpinner.setValue(configManager.getMaxTokens());
+        contextSizeSpinner.setValue(configManager.getContextSize());
         temperatureSpinner.setValue(configManager.getTemperature());
         timeoutSpinner.setValue(configManager.getTimeoutSeconds());
         applyFunctionRenameCheckbox.setSelected(configManager.isApplyFunctionRename());
@@ -378,6 +388,7 @@ public class ConfigurationPanel extends JPanel {
         configManager.setModel(getSelectedModel());
         configManager.setCustomApiUrl(customApiUrl);
         configManager.setMaxTokens((Integer) maxTokensSpinner.getValue());
+        configManager.setContextSize((Integer) contextSizeSpinner.getValue());
         configManager.setTemperature((Double) temperatureSpinner.getValue());
         configManager.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
         configManager.setApplyFunctionRename(applyFunctionRenameCheckbox.isSelected());
@@ -395,6 +406,7 @@ public class ConfigurationPanel extends JPanel {
         apiClient.setModel(getSelectedModel());
         apiClient.setCustomApiUrl(customApiUrl);
         apiClient.setMaxTokens((Integer) maxTokensSpinner.getValue());
+        apiClient.setContextSize((Integer) contextSizeSpinner.getValue());
         apiClient.setTemperature((Double) temperatureSpinner.getValue());
         apiClient.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
         

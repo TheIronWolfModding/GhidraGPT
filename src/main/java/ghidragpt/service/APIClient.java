@@ -32,6 +32,7 @@ public class APIClient {
     // Default configuration constants
     public static final int DEFAULT_TIMEOUT_SECONDS = 30;
     public static final int DEFAULT_MAX_TOKENS = 16384;
+    public static final int DEFAULT_CONTEXT_SIZE = 32768;
     public static final double DEFAULT_TEMPERATURE = 0.1;
     
     private OkHttpClient httpClient;
@@ -43,6 +44,7 @@ public class APIClient {
     
     // Configurable parameters
     private int maxTokens = DEFAULT_MAX_TOKENS;
+    private int contextSize = DEFAULT_CONTEXT_SIZE;
     private double temperature = DEFAULT_TEMPERATURE;
     private int timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
     
@@ -78,6 +80,10 @@ public class APIClient {
     
     public void setMaxTokens(int maxTokens) {
         this.maxTokens = maxTokens;
+    }
+    
+    public void setContextSize(int contextSize) {
+        this.contextSize = contextSize;
     }
     
     public void setTemperature(double temperature) {
@@ -118,6 +124,10 @@ public class APIClient {
     
     public int getMaxTokens() {
         return maxTokens;
+    }
+    
+    public int getContextSize() {
+        return contextSize;
     }
     
     public double getTemperature() {
@@ -636,9 +646,10 @@ public class APIClient {
         );
         request.stream = true;
         request.think = false;
-        request.options = Map.of("num_predict", maxTokens);
+        request.options = Map.of("num_predict", maxTokens, "num_ctx", contextSize, "temperature", temperature);
         
         String jsonRequest = objectMapper.writeValueAsString(request);
+        Msg.info(this, "Ollama request: model=" + request.model + " num_predict=" + maxTokens + " num_ctx=" + contextSize + " temperature=" + temperature);
         
         RequestBody body = RequestBody.create(
             jsonRequest, MediaType.get("application/json; charset=utf-8"));

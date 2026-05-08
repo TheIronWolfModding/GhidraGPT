@@ -19,6 +19,7 @@ public class ConfigurationManager {
     private static final String PROVIDER_PROPERTY = "api.provider";
     private static final String MODEL_PROPERTY = "api.model";
     private static final String MAX_TOKENS_PROPERTY = "api.max.tokens";
+    private static final String CONTEXT_SIZE_PROPERTY = "api.context.size";
     private static final String TEMPERATURE_PROPERTY = "api.temperature";
     private static final String TIMEOUT_PROPERTY = "api.timeout.seconds";
     private static final String CUSTOM_API_URL_PROPERTY = "api.custom.url";
@@ -164,6 +165,14 @@ public class ConfigurationManager {
      */
     public void setMaxTokens(int maxTokens) {
         properties.setProperty(MAX_TOKENS_PROPERTY, String.valueOf(maxTokens));
+    }
+
+    public int getContextSize() {
+        return Integer.parseInt(properties.getProperty(CONTEXT_SIZE_PROPERTY, String.valueOf(APIClient.DEFAULT_CONTEXT_SIZE)));
+    }
+
+    public void setContextSize(int contextSize) {
+        properties.setProperty(CONTEXT_SIZE_PROPERTY, String.valueOf(contextSize));
     }
     
     /**
