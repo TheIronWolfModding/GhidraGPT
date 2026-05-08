@@ -672,7 +672,8 @@ public class APIClient {
             "num_ctx", contextSize,
             "temperature", temperature,
             "repeat_penalty", 1.3,
-            "repeat_last_n", 256
+            "repeat_last_n", -1,
+            "frequency_penalty", 0.5
         ));
         
         String jsonRequest = objectMapper.writeValueAsString(request);
