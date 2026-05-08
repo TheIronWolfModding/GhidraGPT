@@ -189,8 +189,8 @@ public class FunctionRewrite {
                     if (console != null) {
                         console.printAnalysisHeader("Comprehensive Function Rewrite", function.getName(), 
                             provider.toString(), apiClient.getModel(), enhancementPrompt.length());
-                        console.appendInfo(String.format("Options: temperature=%.2f max_tokens=%d context=%d",
-                            apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize()));
+                        console.appendInfo(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d",
+                            apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1));
                     }
                     
                     final StringBuilder streamBuffer = new StringBuilder();
