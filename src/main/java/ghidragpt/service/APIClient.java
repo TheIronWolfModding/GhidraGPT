@@ -31,6 +31,7 @@ public class APIClient {
     
     // Default configuration constants
     public static final int DEFAULT_TIMEOUT_SECONDS = 30;
+    public static final int DEFAULT_PROCESSING_TIMEOUT_MINUTES = 0;
     public static final int DEFAULT_MAX_TOKENS = 16384;
     public static final int DEFAULT_CONTEXT_SIZE = 32768;
     public static final double DEFAULT_TEMPERATURE = 0.1;
@@ -47,6 +48,7 @@ public class APIClient {
     private int contextSize = DEFAULT_CONTEXT_SIZE;
     private double temperature = DEFAULT_TEMPERATURE;
     private int timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
+    private int processingTimeoutMinutes = DEFAULT_PROCESSING_TIMEOUT_MINUTES;
     private boolean enableThinking = false;
     
     // Last Ollama request stats
@@ -120,11 +122,23 @@ public class APIClient {
     public void setEnableThinking(boolean enableThinking) {
         this.enableThinking = enableThinking;
     }
+
+    public boolean isEnableThinking() {
+        return enableThinking;
+    }
     
     public void setTimeoutSeconds(int timeoutSeconds) {
         this.timeoutSeconds = timeoutSeconds;
         // Rebuild HTTP client with new timeout
         rebuildHttpClient();
+    }
+
+    public void setProcessingTimeoutMinutes(int minutes) {
+        this.processingTimeoutMinutes = minutes;
+    }
+
+    public int getProcessingTimeoutMinutes() {
+        return processingTimeoutMinutes;
     }
     
     public void setCustomApiUrl(String customApiUrl) {
@@ -705,8 +719,11 @@ public class APIClient {
     private String processOllamaStream(Request httpRequest, StreamCallback callback) throws IOException {
         StringBuilder contentResponse = new StringBuilder();
         StringBuilder thinkingResponse = new StringBuilder();
+        long startTime = System.currentTimeMillis();
+        long deadlineMs = processingTimeoutMinutes > 0 ? startTime + processingTimeoutMinutes * 60_000L : Long.MAX_VALUE;
         
-        try (Response response = httpClient.newCall(httpRequest).execute()) {
+        okhttp3.Call call = httpClient.newCall(httpRequest);
+        try (Response response = call.execute()) {
             if (!response.isSuccessful()) {
                 throw new IOException("Ollama streaming request failed: " + response.code() + " " + response.message());
             }
@@ -715,6 +732,10 @@ public class APIClient {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.body().byteStream()))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
+                    if (System.currentTimeMillis() > deadlineMs) {
+                        call.cancel();
+                        throw new IOException("Processing timeout: exceeded " + processingTimeoutMinutes + " minute(s)");
+                    }
                     if (!line.trim().isEmpty()) {
                         try {
                             // Debug: Log the raw line to understand Ollama's response format

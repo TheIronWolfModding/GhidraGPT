@@ -26,6 +26,7 @@ public class ConfigurationPanel extends JPanel {
     private final JComboBox<Integer> contextSizeCombo;
     private final JSpinner temperatureSpinner;
     private final JSpinner timeoutSpinner;
+    private final JSpinner processingTimeoutSpinner;
     private final JButton testButton;
     private final JButton saveButton;
     private final JLabel statusLabel;
@@ -40,6 +41,8 @@ public class ConfigurationPanel extends JPanel {
     private final JTextField debugFileField;
     private final JTextArea customInstructionsArea;
     private final JCheckBox enableThinkingCheckbox;
+    private final JSpinner thinkingThresholdSpinner;
+    private final JLabel thinkingThresholdLabel;
     private final JPanel toolbar;
     
     public ConfigurationPanel(APIClient apiClient) {
@@ -54,11 +57,13 @@ public class ConfigurationPanel extends JPanel {
         toolbar.setPreferredSize(new Dimension(400, 32));
         
         testButton = new JButton("Test Connection");
+        testButton.setToolTipText("Test connectivity to the selected LLM provider");
         testButton.addActionListener(e -> testConnection());
         testButton.setPreferredSize(new Dimension(130, 28));
         toolbar.add(testButton);
         
         saveButton = new JButton("Save");
+        saveButton.setToolTipText("Save configuration to disk");
         saveButton.addActionListener(e -> saveConfiguration());
         saveButton.setPreferredSize(new Dimension(80, 28));
         saveButton.setEnabled(false);
@@ -82,6 +87,7 @@ public class ConfigurationPanel extends JPanel {
         formPanel.add(new JLabel("API Provider:"), gbc);
         
         providerCombo = new JComboBox<>(APIClient.GPTProvider.values());
+        providerCombo.setToolTipText("LLM API provider (Ollama for local models)");
         providerCombo.addActionListener(e -> updateModelField());
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(providerCombo, gbc);
@@ -91,6 +97,7 @@ public class ConfigurationPanel extends JPanel {
         formPanel.add(new JLabel("API Key:"), gbc);
         
         apiKeyField = new JPasswordField(30);
+        apiKeyField.setToolTipText("API key for the selected provider (not needed for Ollama)");
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(apiKeyField, gbc);
         
@@ -102,10 +109,12 @@ public class ConfigurationPanel extends JPanel {
         JPanel modelPanel = new JPanel(new BorderLayout(5, 0));
         modelCombo = new JComboBox<>();
         modelCombo.setEditable(true);
+        modelCombo.setToolTipText("Model name (type or select from fetched list)");
         modelCombo.setPreferredSize(new Dimension(200, 25));
         modelPanel.add(modelCombo, BorderLayout.CENTER);
         
         fetchModelsButton = new JButton("Fetch");
+        fetchModelsButton.setToolTipText("Fetch available models from the provider");
         fetchModelsButton.setPreferredSize(new Dimension(70, 25));
         fetchModelsButton.addActionListener(e -> fetchModels());
         modelPanel.add(fetchModelsButton, BorderLayout.EAST);
@@ -119,6 +128,7 @@ public class ConfigurationPanel extends JPanel {
         formPanel.add(customApiUrlLabel, gbc);
         
         customApiUrlField = new JTextField("http://localhost:8000/v1", 30);
+        customApiUrlField.setToolTipText("Base URL for OpenAI-compatible API endpoint");
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(customApiUrlField, gbc);
         
@@ -131,6 +141,7 @@ public class ConfigurationPanel extends JPanel {
         formPanel.add(new JLabel("Max Tokens:"), gbc);
         
         maxTokensSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_MAX_TOKENS, 100, 131072, 1024));
+        maxTokensSpinner.setToolTipText("Maximum number of tokens in the model response");
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(maxTokensSpinner, gbc);
         
@@ -143,6 +154,7 @@ public class ConfigurationPanel extends JPanel {
             contextSizes[i] = (i + 1) * 16384;
         }
         contextSizeCombo = new JComboBox<>(contextSizes);
+        contextSizeCombo.setToolTipText("Context window size sent to the model");
         contextSizeCombo.setSelectedItem(APIClient.DEFAULT_CONTEXT_SIZE);
         contextSizeCombo.setRenderer(new DefaultListCellRenderer() {
             @Override
@@ -162,55 +174,78 @@ public class ConfigurationPanel extends JPanel {
         formPanel.add(new JLabel("Temperature:"), gbc);
         
         temperatureSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_TEMPERATURE, 0.0, 2.0, 0.1));
+        temperatureSpinner.setToolTipText("Sampling temperature (lower = more deterministic, higher = more creative)");
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(temperatureSpinner, gbc);
         
-        // Timeout
+        // Connection Timeout
         gbc.gridx = 0; gbc.gridy = 7; gbc.fill = GridBagConstraints.NONE;
-        formPanel.add(new JLabel("Timeout (seconds):"), gbc);
+        formPanel.add(new JLabel("Connection timeout (s):"), gbc);
         
         timeoutSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_TIMEOUT_SECONDS, 5, 300, 5));
+        timeoutSpinner.setToolTipText("HTTP connect/read/write timeout in seconds");
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(timeoutSpinner, gbc);
+
+        // Processing Timeout
+        gbc.gridx = 0; gbc.gridy = 8; gbc.fill = GridBagConstraints.NONE;
+        formPanel.add(new JLabel("Processing timeout (min):"), gbc);
+        
+        processingTimeoutSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_PROCESSING_TIMEOUT_MINUTES, 0, 120, 1));
+        processingTimeoutSpinner.setToolTipText("Max processing time in minutes (0 = no limit)");
+        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
+        formPanel.add(processingTimeoutSpinner, gbc);
         
         // Rewrite Options separator
-        gbc.gridx = 0; gbc.gridy = 8; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(10, 5, 2, 5);
         JSeparator separator = new JSeparator();
         formPanel.add(separator, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(new JLabel("Rewrite Options:"), gbc);
         
         // Apply Function Rename checkbox
         applyFunctionRenameCheckbox = new JCheckBox("Apply function renames");
         applyFunctionRenameCheckbox.setToolTipText("Allow GhidraGPT to rename functions based on analysis");
-        gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(applyFunctionRenameCheckbox, gbc);
         
         // Apply Function Prototype checkbox
         applyFunctionPrototypeCheckbox = new JCheckBox("Apply function prototypes");
         applyFunctionPrototypeCheckbox.setToolTipText("Allow GhidraGPT to update function signatures (return type, parameters)");
-        gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(applyFunctionPrototypeCheckbox, gbc);
         
         // Print Suggestion Summary checkbox
         printRewriteSummaryCheckbox = new JCheckBox("Print rewrite summary");
         printRewriteSummaryCheckbox.setToolTipText("Print per-suggestion success/failure summary to console after rewrite");
-        gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(printRewriteSummaryCheckbox, gbc);
 
         // Enable Thinking checkbox (Ollama only)
         enableThinkingCheckbox = new JCheckBox("Enable thinking (Ollama)");
         enableThinkingCheckbox.setToolTipText("Allow model to reason before answering (uses more output tokens)");
-        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
-        gbc.insets = new Insets(2, 5, 5, 5);
+        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
+        gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(enableThinkingCheckbox, gbc);
+
+        // Thinking threshold spinner
+        thinkingThresholdLabel = new JLabel("Min thinking prompt (KB):");
+        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 1;
+        gbc.insets = new Insets(2, 20, 5, 5);
+        formPanel.add(thinkingThresholdLabel, gbc);
+        thinkingThresholdSpinner = new JSpinner(new SpinnerNumberModel(10, 0, 1000, 1));
+        thinkingThresholdSpinner.setToolTipText("Thinking is only sent when prompt size exceeds this threshold (0 = always think)");
+        gbc.gridx = 1; gbc.gridy = 15;
+        gbc.insets = new Insets(2, 5, 5, 5);
+        formPanel.add(thinkingThresholdSpinner, gbc);
+        enableThinkingCheckbox.addActionListener(e -> updateThinkingThresholdState());
         
         // Debug mode radio buttons
         debugOffRadio = new JRadioButton("Off");
@@ -247,12 +282,12 @@ public class ConfigurationPanel extends JPanel {
         debugPanel.add(debugPathField);
         debugPanel.add(new JLabel("File:"));
         debugPanel.add(debugFileField);
-        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(debugPanel, gbc);
         
         // Custom Prompt Instructions
-        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
         formPanel.add(new JLabel("Custom Prompt Instructions:"), gbc);
         
@@ -262,7 +297,7 @@ public class ConfigurationPanel extends JPanel {
         customInstructionsArea.setToolTipText("Extra instructions appended to the LLM prompt (e.g. 'Always use camelCase names')");
         JScrollPane instructionsScrollPane = new JScrollPane(customInstructionsArea);
         instructionsScrollPane.setPreferredSize(new Dimension(300, 60));
-        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 18; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(instructionsScrollPane, gbc);
@@ -270,7 +305,7 @@ public class ConfigurationPanel extends JPanel {
         // Vertical spacer to push everything to the top
         JPanel spacer = new JPanel();
         spacer.setOpaque(false);
-        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 19; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.weighty = 1.0;
         gbc.weightx = 1.0;
@@ -319,10 +354,12 @@ public class ConfigurationPanel extends JPanel {
         maxTokensSpinner.addChangeListener(e -> markDirty.run());
         temperatureSpinner.addChangeListener(e -> markDirty.run());
         timeoutSpinner.addChangeListener(e -> markDirty.run());
+        processingTimeoutSpinner.addChangeListener(e -> markDirty.run());
         applyFunctionRenameCheckbox.addActionListener(e -> markDirty.run());
         applyFunctionPrototypeCheckbox.addActionListener(e -> markDirty.run());
         printRewriteSummaryCheckbox.addActionListener(e -> markDirty.run());
         enableThinkingCheckbox.addActionListener(e -> markDirty.run());
+        thinkingThresholdSpinner.addChangeListener(e -> markDirty.run());
         debugOffRadio.addActionListener(e -> markDirty.run());
         debugSaveRadio.addActionListener(e -> markDirty.run());
         debugLoadRadio.addActionListener(e -> markDirty.run());
@@ -348,10 +385,13 @@ public class ConfigurationPanel extends JPanel {
         contextSizeCombo.setSelectedItem(configManager.getContextSize());
         temperatureSpinner.setValue(configManager.getTemperature());
         timeoutSpinner.setValue(configManager.getTimeoutSeconds());
+        processingTimeoutSpinner.setValue(configManager.getProcessingTimeoutMinutes());
         applyFunctionRenameCheckbox.setSelected(configManager.isApplyFunctionRename());
         applyFunctionPrototypeCheckbox.setSelected(configManager.isApplyFunctionPrototype());
         printRewriteSummaryCheckbox.setSelected(configManager.isPrintRewriteSummary());
         enableThinkingCheckbox.setSelected(configManager.isEnableThinking());
+        thinkingThresholdSpinner.setValue(configManager.getThinkingThresholdKb());
+        updateThinkingThresholdState();
         String debugMode = configManager.getDebugMode();
         debugOffRadio.setSelected("off".equals(debugMode));
         debugSaveRadio.setSelected("save".equals(debugMode));
@@ -382,11 +422,18 @@ public class ConfigurationPanel extends JPanel {
             apiClient.setContextSize(configManager.getContextSize());
             apiClient.setTemperature(configManager.getTemperature());
             apiClient.setTimeoutSeconds(configManager.getTimeoutSeconds());
+            apiClient.setProcessingTimeoutMinutes(configManager.getProcessingTimeoutMinutes());
             apiClient.setEnableThinking(configManager.isEnableThinking());
         } else {
             statusLabel.setText("Configuration incomplete");
             statusLabel.setForeground(Color.ORANGE);
         }
+    }
+    
+    private void updateThinkingThresholdState() {
+        boolean enabled = enableThinkingCheckbox.isSelected();
+        thinkingThresholdSpinner.setEnabled(enabled);
+        thinkingThresholdLabel.setEnabled(enabled);
     }
     
     private void updateModelField() {
@@ -469,10 +516,12 @@ public class ConfigurationPanel extends JPanel {
         configManager.setContextSize((Integer) contextSizeCombo.getSelectedItem());
         configManager.setTemperature((Double) temperatureSpinner.getValue());
         configManager.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
+        configManager.setProcessingTimeoutMinutes((Integer) processingTimeoutSpinner.getValue());
         configManager.setApplyFunctionRename(applyFunctionRenameCheckbox.isSelected());
         configManager.setApplyFunctionPrototype(applyFunctionPrototypeCheckbox.isSelected());
         configManager.setPrintRewriteSummary(printRewriteSummaryCheckbox.isSelected());
         configManager.setEnableThinking(enableThinkingCheckbox.isSelected());
+        configManager.setThinkingThresholdKb((Integer) thinkingThresholdSpinner.getValue());
         configManager.setDebugMode(debugSaveRadio.isSelected() ? "save" : debugLoadRadio.isSelected() ? "load" : "off");
         configManager.setDebugPath(debugPathField.getText().trim());
         configManager.setDebugFile(debugFileField.getText().trim());
@@ -488,6 +537,7 @@ public class ConfigurationPanel extends JPanel {
         apiClient.setContextSize((Integer) contextSizeCombo.getSelectedItem());
         apiClient.setTemperature((Double) temperatureSpinner.getValue());
         apiClient.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
+        apiClient.setProcessingTimeoutMinutes((Integer) processingTimeoutSpinner.getValue());
         apiClient.setEnableThinking(enableThinkingCheckbox.isSelected());
         
         configDirty = false;

@@ -31,6 +31,8 @@ public class ConfigurationManager {
     private static final String DEBUG_PATH_PROPERTY = "rewrite.debug.path";
     private static final String DEBUG_FILE_PROPERTY = "rewrite.debug.file";
     private static final String ENABLE_THINKING_PROPERTY = "api.enable.thinking";
+    private static final String THINKING_THRESHOLD_PROPERTY = "api.thinking.threshold.kb";
+    private static final String PROCESSING_TIMEOUT_PROPERTY = "api.processing.timeout.minutes";
     
     // XOR key for API key obfuscation, not super secure but still better than plaintext
     private static final String XOR_KEY = "GhidraGPT_Sec3@Key_9f4e7a2b#8c1d6f0a@2025!";
@@ -324,6 +326,22 @@ public class ConfigurationManager {
 
     public void setEnableThinking(boolean enable) {
         properties.setProperty(ENABLE_THINKING_PROPERTY, String.valueOf(enable));
+    }
+
+    public int getThinkingThresholdKb() {
+        return Integer.parseInt(properties.getProperty(THINKING_THRESHOLD_PROPERTY, "10"));
+    }
+
+    public void setThinkingThresholdKb(int kb) {
+        properties.setProperty(THINKING_THRESHOLD_PROPERTY, String.valueOf(kb));
+    }
+
+    public int getProcessingTimeoutMinutes() {
+        return Integer.parseInt(properties.getProperty(PROCESSING_TIMEOUT_PROPERTY, "0"));
+    }
+
+    public void setProcessingTimeoutMinutes(int minutes) {
+        properties.setProperty(PROCESSING_TIMEOUT_PROPERTY, String.valueOf(minutes));
     }
     
     /**

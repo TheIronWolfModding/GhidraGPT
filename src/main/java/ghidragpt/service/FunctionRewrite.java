@@ -185,13 +185,28 @@ public class FunctionRewrite {
                 try {
                     APIClient.GPTProvider provider = apiClient.getProvider();
                     
+                    // Determine if thinking should be active for this prompt size
+                    boolean thinkingEnabled = configManager != null && configManager.isEnableThinking();
+                    boolean thinkingActive = thinkingEnabled;
+                    if (thinkingEnabled && configManager.getThinkingThresholdKb() > 0) {
+                        int promptKb = enhancementPrompt.length() / 1024;
+                        if (promptKb < configManager.getThinkingThresholdKb()) {
+                            thinkingActive = false;
+                            if (console != null) {
+                                console.appendInfo(String.format("Thinking disabled: prompt %dKB < threshold %dKB",
+                                    promptKb, configManager.getThinkingThresholdKb()));
+                            }
+                        }
+                    }
+                    apiClient.setEnableThinking(thinkingActive);
+
                     // Print analysis header using console
                     if (console != null) {
                         console.printAnalysisHeader("Comprehensive Function Rewrite", function.getName(), 
                             provider.toString(), apiClient.getModel(), enhancementPrompt.length());
                         console.appendInfo(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d think=%b",
                             apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1,
-                            configManager != null && configManager.isEnableThinking()));
+                            thinkingActive));
                     }
                     
                     final StringBuilder streamBuffer = new StringBuilder();
@@ -339,7 +354,7 @@ public class FunctionRewrite {
             }
             extraLines.append(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d think=%b\n",
                 apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1,
-                configManager != null && configManager.isEnableThinking()));
+                apiClient.isEnableThinking()));
             
             monitor.setMessage("Applying comprehensive function rewrite...");
             monitor.setProgress(80);
@@ -362,7 +377,7 @@ public class FunctionRewrite {
                         fw.write("Size: " + enhancementPrompt.length() + " chars\n");
                         fw.write(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d think=%b\n",
                             apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1,
-                            configManager != null && configManager.isEnableThinking()));
+                            apiClient.isEnableThinking()));
                         fw.write("------------------------------------------------------------\n");
                         
                         for (SuggestionOutcome outcome : result.suggestionOutcomes) {
@@ -388,7 +403,8 @@ public class FunctionRewrite {
                         
                         // Stats footer
                         fw.write("------------------------------------------------------------\n");
-                        fw.write("Completed in " + duration + "ms\n");
+                        long totalSec = duration / 1000;
+                        fw.write("Completed in " + (totalSec / 60) + "m " + (totalSec % 60) + "s\n");
                         fw.write("  " + enhancementPrompt.length() + " prompt / " + aiResponse.length() + " response bytes\n");
                         if (extraLines.length() > 0) {
                             fw.write(extraLines.toString());

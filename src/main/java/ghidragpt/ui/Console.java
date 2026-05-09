@@ -355,21 +355,31 @@ public class Console extends JPanel {
      * Print analysis stats block (completion time, tokens, extras, separator).
      * Uses invokeLater to ensure ordering after printSuggestionSummary.
      */
+    private static String formatDuration(long ms) {
+        long totalSeconds = ms / 1000;
+        long minutes = totalSeconds / 60;
+        long seconds = totalSeconds % 60;
+        if (minutes > 0) {
+            return minutes + "m " + seconds + "s";
+        }
+        return seconds + "s";
+    }
+
     public void printAnalysisStats(String operation, long duration, int promptLength, int responseLength, String extraLines) {
         SwingUtilities.invokeLater(() -> {
             try {
                 StringBuilder footer = new StringBuilder();
-                footer.append("√ ").append(operation).append(" completed in ").append(duration).append("ms\n");
+                footer.append("\u221a ").append(operation).append(" completed in ").append(formatDuration(duration)).append("\n");
                 footer.append("  ").append(promptLength).append(" prompt / ").append(responseLength).append(" response bytes\n");
                 if (extraLines != null) {
                     footer.append(extraLines);
                 }
-                footer.append("═".repeat(65)).append("\n");
+                footer.append("\u2550".repeat(65)).append("\n");
                 document.insertString(document.getLength(), footer.toString(), textPane.getStyle("success"));
                 textPane.setCaretPosition(document.getLength());
                 scrollPane.getVerticalScrollBar().setValue(scrollPane.getVerticalScrollBar().getMaximum());
             } catch (BadLocationException e) {
-                appendMessage("Stream", operation + " completed in " + duration + "ms", MessageType.SUCCESS);
+                appendMessage("Stream", operation + " completed in " + formatDuration(duration), MessageType.SUCCESS);
             }
         });
     }
@@ -389,7 +399,7 @@ public class Console extends JPanel {
         try {
             StringBuilder footer = new StringBuilder();
             footer.append("\n└─────────────────────────────────────────────────────────┘\n");
-            footer.append("√ ").append(operation).append(" completed in ").append(duration).append("ms\n");
+            footer.append("√ ").append(operation).append(" completed in ").append(formatDuration(duration)).append("\n");
             footer.append("  ").append(promptLength).append(" prompt / ").append(responseLength).append(" response bytes\n");
             if (extraLines != null) {
                 footer.append(extraLines);
@@ -399,7 +409,7 @@ public class Console extends JPanel {
             textPane.setCaretPosition(document.getLength());
             scrollPane.getVerticalScrollBar().setValue(scrollPane.getVerticalScrollBar().getMaximum());
         } catch (BadLocationException e) {
-            appendMessage("Stream", operation + " completed in " + duration + "ms", MessageType.SUCCESS);
+            appendMessage("Stream", operation + " completed in " + formatDuration(duration), MessageType.SUCCESS);
         }
     }
 
