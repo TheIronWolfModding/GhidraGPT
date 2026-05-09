@@ -274,6 +274,13 @@ public class FunctionRewrite {
                         try (FileWriter fw = new FileWriter(promptFile)) {
                             fw.write(enhancementPrompt);
                         }
+                        String thinkingContent = apiClient.getLastThinkingContent();
+                        if (thinkingContent != null) {
+                            File thinkingFile = new File(debugPrefix + "-thinking");
+                            try (FileWriter fw = new FileWriter(thinkingFile)) {
+                                fw.write(thinkingContent);
+                            }
+                        }
                         File responseFile = new File(debugPrefix + "-response");
                         try (FileWriter fw = new FileWriter(responseFile)) {
                             fw.write(aiResponse);

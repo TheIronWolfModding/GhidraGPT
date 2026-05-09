@@ -29,7 +29,7 @@ public class Console extends JPanel {
     
     // Streaming format state
     private boolean inCodeSpan = false;
-    private boolean pendingBacktick = false;
+    private int pendingBacktickCount = 0;
     private boolean inBold = false;
     private boolean pendingAsterisk = false;
     
@@ -313,7 +313,7 @@ public class Console extends JPanel {
      */
     public void printStreamHeader() {
         inCodeSpan = false;
-        pendingBacktick = false;
+        pendingBacktickCount = 0;
         inBold = false;
         pendingAsterisk = false;
         try {
@@ -436,13 +436,13 @@ public class Console extends JPanel {
                             pendingAsterisk = false;
                             document.insertString(document.getLength(), "*", getActiveStyle());
                         }
-                        if (!pendingBacktick) {
-                            pendingBacktick = true;
-                        }
+                        pendingBacktickCount++;
                     } else if (c == '*') {
-                        if (pendingBacktick) {
-                            pendingBacktick = false;
-                            inCodeSpan = !inCodeSpan;
+                        if (pendingBacktickCount > 0) {
+                            if (pendingBacktickCount < 3) {
+                                inCodeSpan = !inCodeSpan;
+                            }
+                            pendingBacktickCount = 0;
                         }
                         if (pendingAsterisk) {
                             pendingAsterisk = false;
@@ -451,9 +451,11 @@ public class Console extends JPanel {
                             pendingAsterisk = true;
                         }
                     } else {
-                        if (pendingBacktick) {
-                            pendingBacktick = false;
-                            inCodeSpan = !inCodeSpan;
+                        if (pendingBacktickCount > 0) {
+                            if (pendingBacktickCount < 3) {
+                                inCodeSpan = !inCodeSpan;
+                            }
+                            pendingBacktickCount = 0;
                         }
                         if (pendingAsterisk) {
                             pendingAsterisk = false;

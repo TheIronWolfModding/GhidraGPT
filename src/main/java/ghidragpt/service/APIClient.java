@@ -51,6 +51,7 @@ public class APIClient {
     
     // Last Ollama request stats
     private volatile OllamaRequestStats lastOllamaStats;
+    private volatile String lastThinkingContent;
 
     public static class OllamaRequestStats {
         public final int promptTokens;
@@ -68,6 +69,10 @@ public class APIClient {
 
     public OllamaRequestStats getLastOllamaStats() {
         return lastOllamaStats;
+    }
+
+    public String getLastThinkingContent() {
+        return lastThinkingContent;
     }
 
     public enum GPTProvider {
@@ -697,7 +702,8 @@ public class APIClient {
     }
     
     private String processOllamaStream(Request httpRequest, StreamCallback callback) throws IOException {
-        StringBuilder fullResponse = new StringBuilder();
+        StringBuilder contentResponse = new StringBuilder();
+        StringBuilder thinkingResponse = new StringBuilder();
         
         try (Response response = httpClient.newCall(httpRequest).execute()) {
             if (!response.isSuccessful()) {
@@ -717,13 +723,13 @@ public class APIClient {
                             if (streamResponse.message != null) {
                                 if (streamResponse.message.thinking != null && !streamResponse.message.thinking.isEmpty()) {
                                     String thinking = streamResponse.message.thinking;
-                                    fullResponse.append(thinking);
+                                    thinkingResponse.append(thinking);
                                     Msg.info(this, "Ollama thinking: '" + thinking + "'");
                                     callback.onPartialResponse(thinking);
                                 }
                                 if (streamResponse.message.content != null && !streamResponse.message.content.isEmpty()) {
                                     String content = streamResponse.message.content;
-                                    fullResponse.append(content);
+                                    contentResponse.append(content);
                                     Msg.info(this, "Ollama content: '" + content + "'");
                                     callback.onPartialResponse(content);
                                 }
@@ -754,7 +760,8 @@ public class APIClient {
             throw e;
         }
         
-        String result = fullResponse.toString();
+        lastThinkingContent = thinkingResponse.length() > 0 ? thinkingResponse.toString() : null;
+        String result = contentResponse.toString();
         callback.onComplete(result);
         return result;
     }
