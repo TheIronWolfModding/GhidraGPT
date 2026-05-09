@@ -189,8 +189,9 @@ public class FunctionRewrite {
                     if (console != null) {
                         console.printAnalysisHeader("Comprehensive Function Rewrite", function.getName(), 
                             provider.toString(), apiClient.getModel(), enhancementPrompt.length());
-                        console.appendInfo(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d",
-                            apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1));
+                        console.appendInfo(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d think=%b",
+                            apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1,
+                            configManager != null && configManager.isEnableThinking()));
                     }
                     
                     final StringBuilder streamBuffer = new StringBuilder();
@@ -313,8 +314,9 @@ public class FunctionRewrite {
             if (debugPrefix != null) {
                 extraLines.append("Saved prompt and response to: ").append(debugPrefix).append("-*\n");
             }
-            extraLines.append(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d\n",
-                apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1));
+            extraLines.append(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d think=%b\n",
+                apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1,
+                configManager != null && configManager.isEnableThinking()));
             
             monitor.setMessage("Applying comprehensive function rewrite...");
             monitor.setProgress(80);
@@ -335,8 +337,9 @@ public class FunctionRewrite {
                         fw.write("Provider: " + apiClient.getProvider() + "\n");
                         fw.write("Model: " + apiClient.getModel() + "\n");
                         fw.write("Size: " + enhancementPrompt.length() + " chars\n");
-                        fw.write(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d\n",
-                            apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1));
+                        fw.write(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d think=%b\n",
+                            apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1,
+                            configManager != null && configManager.isEnableThinking()));
                         fw.write("------------------------------------------------------------\n");
                         
                         for (SuggestionOutcome outcome : result.suggestionOutcomes) {
@@ -725,14 +728,13 @@ public class FunctionRewrite {
      */
     private String generateComprehensiveRewritePrompt(Function function, String decompiledCode, FunctionAnalysis functionAnalysis, List<GlobalVarInfo> globalRefs) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("Analyze this decompiled function and provide a comprehensive rewrite specification to make it as human-readable as possible.\n");
         if (configManager != null) {
             String customInstructions = configManager.getCustomInstructions();
             if (customInstructions != null && !customInstructions.trim().isEmpty()) {
-                prompt.append(customInstructions.trim()).append("\n");
+                prompt.append(customInstructions.trim()).append("\n\n");
             }
         }
-        prompt.append("\n");
+        prompt.append("Analyze this decompiled function and provide a comprehensive rewrite specification to make it as human-readable as possible.\n\n");
         prompt.append("Current function: ").append(function.getName()).append("\n\n");
         prompt.append("Decompiled code:\n").append(decompiledCode).append("\n\n");
         

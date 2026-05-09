@@ -30,6 +30,7 @@ public class ConfigurationManager {
     private static final String DEBUG_MODE_PROPERTY = "rewrite.debug.mode";
     private static final String DEBUG_PATH_PROPERTY = "rewrite.debug.path";
     private static final String DEBUG_FILE_PROPERTY = "rewrite.debug.file";
+    private static final String ENABLE_THINKING_PROPERTY = "api.enable.thinking";
     
     // XOR key for API key obfuscation, not super secure but still better than plaintext
     private static final String XOR_KEY = "GhidraGPT_Sec3@Key_9f4e7a2b#8c1d6f0a@2025!";
@@ -315,6 +316,14 @@ public class ConfigurationManager {
     
     public void setCustomInstructions(String instructions) {
         properties.setProperty(CUSTOM_INSTRUCTIONS_PROPERTY, instructions != null ? instructions : "");
+    }
+
+    public boolean isEnableThinking() {
+        return Boolean.parseBoolean(properties.getProperty(ENABLE_THINKING_PROPERTY, "false"));
+    }
+
+    public void setEnableThinking(boolean enable) {
+        properties.setProperty(ENABLE_THINKING_PROPERTY, String.valueOf(enable));
     }
     
     /**

@@ -47,6 +47,7 @@ public class APIClient {
     private int contextSize = DEFAULT_CONTEXT_SIZE;
     private double temperature = DEFAULT_TEMPERATURE;
     private int timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
+    private boolean enableThinking = false;
     
     // Last Ollama request stats
     private volatile OllamaRequestStats lastOllamaStats;
@@ -109,6 +110,10 @@ public class APIClient {
     
     public void setTemperature(double temperature) {
         this.temperature = temperature;
+    }
+
+    public void setEnableThinking(boolean enableThinking) {
+        this.enableThinking = enableThinking;
     }
     
     public void setTimeoutSeconds(int timeoutSeconds) {
@@ -666,7 +671,7 @@ public class APIClient {
             new OllamaMessage("user", prompt)
         );
         request.stream = true;
-        request.think = false;
+        request.think = enableThinking;
         request.options = new java.util.HashMap<>(Map.of(
             "num_predict", maxTokens,
             "num_ctx", contextSize,
@@ -709,11 +714,19 @@ public class APIClient {
                             Msg.info(this, "Ollama response line: " + line);
                             
                             OllamaStreamResponse streamResponse = objectMapper.readValue(line, OllamaStreamResponse.class);
-                            if (streamResponse.message != null && streamResponse.message.content != null) {
-                                String content = streamResponse.message.content;
-                                fullResponse.append(content);
-                                Msg.info(this, "Ollama content: '" + content + "'");
-                                callback.onPartialResponse(content);
+                            if (streamResponse.message != null) {
+                                if (streamResponse.message.thinking != null && !streamResponse.message.thinking.isEmpty()) {
+                                    String thinking = streamResponse.message.thinking;
+                                    fullResponse.append(thinking);
+                                    Msg.info(this, "Ollama thinking: '" + thinking + "'");
+                                    callback.onPartialResponse(thinking);
+                                }
+                                if (streamResponse.message.content != null && !streamResponse.message.content.isEmpty()) {
+                                    String content = streamResponse.message.content;
+                                    fullResponse.append(content);
+                                    Msg.info(this, "Ollama content: '" + content + "'");
+                                    callback.onPartialResponse(content);
+                                }
                             }
                             
                             // Check if this is the final message
@@ -1414,6 +1427,7 @@ public class APIClient {
     public static class OllamaMessage {
         public String role;
         public String content;
+        public String thinking;
         
         public OllamaMessage() {}
         

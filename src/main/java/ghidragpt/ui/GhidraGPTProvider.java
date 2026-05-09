@@ -55,15 +55,8 @@ public class GhidraGPTProvider extends ComponentProvider {
         // Create tabbed pane
         tabbedPane = new JTabbedPane();
 
-        // Configuration tab
-        JPanel configTab = new JPanel(new BorderLayout());
-        JScrollPane configScrollPane = new JScrollPane(configPanel);
-        configScrollPane.setBorder(null);
-        configTab.add(configScrollPane, BorderLayout.CENTER);
-        JPanel buttonPanel = createButtonPanel();
-        configTab.add(buttonPanel, BorderLayout.SOUTH);
-
-        tabbedPane.addTab("Configuration", configTab);
+        // Configuration tab - added directly like Console
+        tabbedPane.addTab("Configuration", configPanel);
         tabbedPane.addTab("Console", console);
 
         mainPanel.add(tabbedPane, BorderLayout.CENTER);

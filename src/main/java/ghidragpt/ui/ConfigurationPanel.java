@@ -39,6 +39,8 @@ public class ConfigurationPanel extends JPanel {
     private final JTextField debugPathField;
     private final JTextField debugFileField;
     private final JTextArea customInstructionsArea;
+    private final JCheckBox enableThinkingCheckbox;
+    private final JPanel toolbar;
     
     public ConfigurationPanel(APIClient apiClient) {
         this.apiClient = apiClient;
@@ -46,8 +48,10 @@ public class ConfigurationPanel extends JPanel {
         
         setLayout(new BorderLayout());
         
-        // Toolbar at top with Test, Save buttons and status
-        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
+        // Toolbar with Test, Save buttons and status
+        toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
+        toolbar.setMinimumSize(new Dimension(200, 32));
+        toolbar.setPreferredSize(new Dimension(400, 32));
         
         testButton = new JButton("Test Connection");
         testButton.addActionListener(e -> testConnection());
@@ -198,14 +202,22 @@ public class ConfigurationPanel extends JPanel {
         printRewriteSummaryCheckbox = new JCheckBox("Print rewrite summary");
         printRewriteSummaryCheckbox.setToolTipText("Print per-suggestion success/failure summary to console after rewrite");
         gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
-        gbc.insets = new Insets(2, 5, 5, 5);
+        gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(printRewriteSummaryCheckbox, gbc);
+
+        // Enable Thinking checkbox (Ollama only)
+        enableThinkingCheckbox = new JCheckBox("Enable thinking (Ollama)");
+        enableThinkingCheckbox.setToolTipText("Allow model to reason before answering (uses more output tokens)");
+        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
+        gbc.insets = new Insets(2, 5, 5, 5);
+        formPanel.add(enableThinkingCheckbox, gbc);
         
         // Debug mode radio buttons
         debugOffRadio = new JRadioButton("Off");
         debugSaveRadio = new JRadioButton("Save");
         debugLoadRadio = new JRadioButton("Load Response");
         debugOffRadio.setSelected(true);
+        // Shift debug gridy values to accommodate new checkbox
         ButtonGroup debugGroup = new ButtonGroup();
         debugGroup.add(debugOffRadio);
         debugGroup.add(debugSaveRadio);
@@ -235,12 +247,12 @@ public class ConfigurationPanel extends JPanel {
         debugPanel.add(debugPathField);
         debugPanel.add(new JLabel("File:"));
         debugPanel.add(debugFileField);
-        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(debugPanel, gbc);
         
         // Custom Prompt Instructions
-        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
         formPanel.add(new JLabel("Custom Prompt Instructions:"), gbc);
         
@@ -250,7 +262,7 @@ public class ConfigurationPanel extends JPanel {
         customInstructionsArea.setToolTipText("Extra instructions appended to the LLM prompt (e.g. 'Always use camelCase names')");
         JScrollPane instructionsScrollPane = new JScrollPane(customInstructionsArea);
         instructionsScrollPane.setPreferredSize(new Dimension(300, 60));
-        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(instructionsScrollPane, gbc);
@@ -258,7 +270,7 @@ public class ConfigurationPanel extends JPanel {
         // Vertical spacer to push everything to the top
         JPanel spacer = new JPanel();
         spacer.setOpaque(false);
-        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.weighty = 1.0;
         gbc.weightx = 1.0;
@@ -266,6 +278,7 @@ public class ConfigurationPanel extends JPanel {
         
         JScrollPane formScrollPane = new JScrollPane(formPanel);
         formScrollPane.setBorder(null);
+        formScrollPane.getVerticalScrollBar().setUnitIncrement(16);
         add(formScrollPane, BorderLayout.CENTER);
         
         updateModelField();
@@ -309,9 +322,17 @@ public class ConfigurationPanel extends JPanel {
         applyFunctionRenameCheckbox.addActionListener(e -> markDirty.run());
         applyFunctionPrototypeCheckbox.addActionListener(e -> markDirty.run());
         printRewriteSummaryCheckbox.addActionListener(e -> markDirty.run());
+        enableThinkingCheckbox.addActionListener(e -> markDirty.run());
         debugOffRadio.addActionListener(e -> markDirty.run());
         debugSaveRadio.addActionListener(e -> markDirty.run());
         debugLoadRadio.addActionListener(e -> markDirty.run());
+    }
+    
+    /**
+     * Returns the toolbar panel with Test/Save buttons, for external placement.
+     */
+    public JPanel getToolbar() {
+        return toolbar;
     }
     
     /**
@@ -330,6 +351,7 @@ public class ConfigurationPanel extends JPanel {
         applyFunctionRenameCheckbox.setSelected(configManager.isApplyFunctionRename());
         applyFunctionPrototypeCheckbox.setSelected(configManager.isApplyFunctionPrototype());
         printRewriteSummaryCheckbox.setSelected(configManager.isPrintRewriteSummary());
+        enableThinkingCheckbox.setSelected(configManager.isEnableThinking());
         String debugMode = configManager.getDebugMode();
         debugOffRadio.setSelected("off".equals(debugMode));
         debugSaveRadio.setSelected("save".equals(debugMode));
@@ -360,6 +382,7 @@ public class ConfigurationPanel extends JPanel {
             apiClient.setContextSize(configManager.getContextSize());
             apiClient.setTemperature(configManager.getTemperature());
             apiClient.setTimeoutSeconds(configManager.getTimeoutSeconds());
+            apiClient.setEnableThinking(configManager.isEnableThinking());
         } else {
             statusLabel.setText("Configuration incomplete");
             statusLabel.setForeground(Color.ORANGE);
@@ -449,6 +472,7 @@ public class ConfigurationPanel extends JPanel {
         configManager.setApplyFunctionRename(applyFunctionRenameCheckbox.isSelected());
         configManager.setApplyFunctionPrototype(applyFunctionPrototypeCheckbox.isSelected());
         configManager.setPrintRewriteSummary(printRewriteSummaryCheckbox.isSelected());
+        configManager.setEnableThinking(enableThinkingCheckbox.isSelected());
         configManager.setDebugMode(debugSaveRadio.isSelected() ? "save" : debugLoadRadio.isSelected() ? "load" : "off");
         configManager.setDebugPath(debugPathField.getText().trim());
         configManager.setDebugFile(debugFileField.getText().trim());
@@ -464,6 +488,7 @@ public class ConfigurationPanel extends JPanel {
         apiClient.setContextSize((Integer) contextSizeCombo.getSelectedItem());
         apiClient.setTemperature((Double) temperatureSpinner.getValue());
         apiClient.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
+        apiClient.setEnableThinking(enableThinkingCheckbox.isSelected());
         
         configDirty = false;
         saveButton.setEnabled(false);
