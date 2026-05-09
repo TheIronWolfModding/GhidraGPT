@@ -27,6 +27,9 @@ public class Console extends JPanel {
     private Style resultStyle;
     private Style errorStyle;
     
+    // Streaming backtick state
+    private boolean inCodeSpan = false;
+    
     // Cancel support
     private JButton cancelButton;
     private volatile TaskMonitor activeMonitor;
@@ -115,6 +118,12 @@ public class Console extends JPanel {
         Style suggestionStyle = textPane.addStyle("suggestion", null);
         StyleConstants.setForeground(suggestionStyle, new Color(0, 255, 128));
         StyleConstants.setBold(suggestionStyle, false);
+        
+        // Code span style - for text between backticks
+        Style codeStyle = textPane.addStyle("code", null);
+        StyleConstants.setForeground(codeStyle, new Color(206, 145, 120));
+        StyleConstants.setBackground(codeStyle, new Color(40, 40, 40));
+        StyleConstants.setFontFamily(codeStyle, "Consolas");
     }
     
     private JPanel createToolbar() {
@@ -288,6 +297,7 @@ public class Console extends JPanel {
      * Print stream header (called on first response)
      */
     public void printStreamHeader() {
+        inCodeSpan = false;
         try {
             String header = "\n┌─ ▲ LLM Response Stream ─────────────────────────────────┐\n";
             document.insertString(document.getLength(), header, textPane.getStyle("success"));
@@ -394,11 +404,23 @@ public class Console extends JPanel {
     public void appendStreamingText(String text) {
         SwingUtilities.invokeLater(() -> {
             try {
-                document.insertString(document.getLength(), text, resultStyle);
+                Style codeStyle = textPane.getStyle("code");
+                int i = 0;
+                while (i < text.length()) {
+                    int next = text.indexOf('`', i);
+                    if (next == -1) {
+                        document.insertString(document.getLength(), text.substring(i), inCodeSpan ? codeStyle : resultStyle);
+                        break;
+                    }
+                    if (next > i) {
+                        document.insertString(document.getLength(), text.substring(i, next), inCodeSpan ? codeStyle : resultStyle);
+                    }
+                    inCodeSpan = !inCodeSpan;
+                    i = next + 1;
+                }
                 textPane.setCaretPosition(document.getLength());
                 scrollPane.getVerticalScrollBar().setValue(scrollPane.getVerticalScrollBar().getMaximum());
             } catch (BadLocationException e) {
-                // Fallback to simple append
                 textPane.setText(textPane.getText() + text);
             }
         });
