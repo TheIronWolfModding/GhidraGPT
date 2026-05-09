@@ -330,6 +330,15 @@ public class FunctionRewrite {
                 try {
                     File summaryFile = new File(debugPrefix + "-summary");
                     try (FileWriter fw = new FileWriter(summaryFile)) {
+                        // Header
+                        fw.write("Function: " + function.getName() + "\n");
+                        fw.write("Provider: " + apiClient.getProvider() + "\n");
+                        fw.write("Model: " + apiClient.getModel() + "\n");
+                        fw.write("Size: " + enhancementPrompt.length() + " chars\n");
+                        fw.write(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d\n",
+                            apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1));
+                        fw.write("------------------------------------------------------------\n");
+                        
                         for (SuggestionOutcome outcome : result.suggestionOutcomes) {
                             String tag = outcome.applied ? "OK" : "SKIP";
                             if (!outcome.applied && outcome.reason != null) {
@@ -349,6 +358,14 @@ public class FunctionRewrite {
                         }
                         for (Map.Entry<String, String> entry : rewriteSpec.classSuggestions.entrySet()) {
                             fw.write("[SUGGESTION] [Class Name] " + entry.getKey() + " -> " + entry.getValue() + "\n");
+                        }
+                        
+                        // Stats footer
+                        fw.write("------------------------------------------------------------\n");
+                        fw.write("Completed in " + duration + "ms\n");
+                        fw.write("  " + enhancementPrompt.length() + " prompt / " + aiResponse.length() + " response bytes\n");
+                        if (extraLines.length() > 0) {
+                            fw.write(extraLines.toString());
                         }
                     }
                     if (console != null) {
@@ -823,21 +840,8 @@ public class FunctionRewrite {
         }
         
         prompt.append("Analysis Instructions:\n");
-        prompt.append("1. Suggest a descriptive function name based on what the function does\n");
-        prompt.append("2. Rename variables to reflect their purpose/usage\n");
-        prompt.append("3. For unclear types, suggest more specific types based on usage patterns\n");
-        prompt.append("4. Suggest a proper function prototype/signature if the current one seems incorrect\n");
-        prompt.append("5. Add helpful comments for complex logic, important operations, or unclear code sections\n");
-        prompt.append("6. Focus on renaming generic names (param_1, local_38, uStack_20, etc.)\n");
-        prompt.append("7. Pay attention to:\n");
-        prompt.append("   - Function parameters and their roles\n");
-        prompt.append("   - Loop counters, flags, temporary storage\n");
-        prompt.append("   - Return values and error codes\n");
-        prompt.append("   - Data size patterns (int vs long vs pointer)\n");
-        prompt.append("8. For global variables (DAT_*, cls_*), suggest descriptive names and types based on how they are used in this function\n");
-        prompt.append("9. For struct member fields (field*_0x*, mbr_*) accessed via -> or . on any variable, suggest descriptive renames in field_renames using the field name as the key\n");
-        prompt.append("10. For function calls (FUN_*, cls_*::meth_*), suggest descriptive names in function_renames using the full call name as the key\n");
-        prompt.append("11. For all classes/structs (cls_0x*, C_*, etc.), suggest descriptive class names in class_suggestions\n\n");
+        prompt.append("- Focus on renaming generic names (param_1, local_38, uStack_20, DAT_*, FUN_*, field_0x*, mbr_*, cls_0x*) to descriptive names based on usage context\n");
+        prompt.append("- Suggest a proper function prototype if the current one seems incorrect\n\n");
         
         prompt.append("Answer strictly in this JSON format with no extra output:\n");
         prompt.append("{\n");
@@ -920,12 +924,8 @@ public class FunctionRewrite {
         prompt.append("}\n\n");
         
         prompt.append("Notes:\n");
-        prompt.append("- Keep well-named variables like 'ControlPc' and 'FunctionEntry' unless you have significantly better names.\n");
-        prompt.append("- For comments, use ONLY addresses from /* XXXXXXXX */ annotations at the start of code lines -- NEVER use addresses of referenced data, labels, or vtables\n");
-        prompt.append("- Only include fields that need changes - omit empty objects\n");
+        prompt.append("- For comments, use ONLY addresses from /* XXXXXXXX */ annotations at the start of code lines\n");
         prompt.append("- Function prototype should be a complete C function signature\n");
-        prompt.append("- Do NOT rename LAB_*, vftable_*, switchD_*, or caseD_* labels -- they are code references, not variables\n");
-        prompt.append("- If the function is a constructor that only initializes/zeroes fields, field names are speculative -- prefer generic names like m_field84, m_field88 over guessing semantics\n");
         
         return prompt.toString();
     }
@@ -1809,9 +1809,14 @@ public class FunctionRewrite {
         }
         
         // Pre-filter: silently drop renames where oldName doesn't exist as a symbol (hallucinated by LLM)
+        // Also drop code labels that the LLM should never try to rename
         Map<String, String> filteredRenames = new LinkedHashMap<>();
         for (Map.Entry<String, String> rename : renames.entrySet()) {
             String oldName = rename.getKey();
+            if (isCodeLabel(oldName)) {
+                Msg.info(this, "Dropping code label rename: " + oldName + " (not a variable)");
+                continue;
+            }
             if ("this".equals(oldName) || isMemberFieldName(oldName) || symbolMap.containsKey(oldName)) {
                 filteredRenames.put(oldName, rename.getValue());
             } else {
@@ -2034,6 +2039,14 @@ public class FunctionRewrite {
     /**
      * Check if a name looks like a struct member field name (auto-generated or user-renamed)
      */
+    /**
+     * Returns true if the name is a Ghidra code label that should never be renamed.
+     */
+    private boolean isCodeLabel(String name) {
+        return name.startsWith("LAB_") || name.startsWith("vftable_") ||
+               name.startsWith("switchD_") || name.startsWith("caseD_");
+    }
+
     private boolean isMemberFieldName(String name) {
         return name.startsWith("mbr_") || name.startsWith("field") || name.startsWith("m_");
     }

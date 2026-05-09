@@ -662,7 +662,7 @@ public class APIClient {
         OllamaRequest request = new OllamaRequest();
         request.model = model.isEmpty() ? "llama3.2" : model;
         request.messages = List.of(
-            new OllamaMessage("system", "You are a security expert."),
+            new OllamaMessage("system", "You are an expert in reverse engineering decompiled C/C++ code from Ghidra."),
             new OllamaMessage("user", prompt)
         );
         request.stream = true;
