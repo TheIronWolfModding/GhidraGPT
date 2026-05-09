@@ -298,6 +298,43 @@ public class Console extends JPanel {
     }
     
     /**
+     * Close the stream box (just the └── line)
+     */
+    public void printStreamClose() {
+        try {
+            document.insertString(document.getLength(),
+                "\n└─────────────────────────────────────────────────────────┘\n",
+                textPane.getStyle("success"));
+            textPane.setCaretPosition(document.getLength());
+        } catch (BadLocationException e) {
+            // ignore
+        }
+    }
+
+    /**
+     * Print analysis stats block (completion time, tokens, extras, separator).
+     * Uses invokeLater to ensure ordering after printSuggestionSummary.
+     */
+    public void printAnalysisStats(String operation, long duration, int promptLength, int responseLength, String extraLines) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                StringBuilder footer = new StringBuilder();
+                footer.append("√ ").append(operation).append(" completed in ").append(duration).append("ms\n");
+                footer.append("  ").append(promptLength).append(" prompt / ").append(responseLength).append(" response bytes\n");
+                if (extraLines != null) {
+                    footer.append(extraLines);
+                }
+                footer.append("═".repeat(65)).append("\n");
+                document.insertString(document.getLength(), footer.toString(), textPane.getStyle("success"));
+                textPane.setCaretPosition(document.getLength());
+                scrollPane.getVerticalScrollBar().setValue(scrollPane.getVerticalScrollBar().getMaximum());
+            } catch (BadLocationException e) {
+                appendMessage("Stream", operation + " completed in " + duration + "ms", MessageType.SUCCESS);
+            }
+        });
+    }
+
+    /**
      * Print stream completion message
      */
     public void printStreamComplete(String operation, long duration, int responseLength) {

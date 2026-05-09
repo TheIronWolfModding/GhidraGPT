@@ -27,7 +27,9 @@ public class ConfigurationPanel extends JPanel {
     private final JSpinner temperatureSpinner;
     private final JSpinner timeoutSpinner;
     private final JButton testButton;
+    private final JButton saveButton;
     private final JLabel statusLabel;
+    private boolean configDirty = false;
     private final JCheckBox applyFunctionRenameCheckbox;
     private final JCheckBox applyFunctionPrototypeCheckbox;
     private final JCheckBox printRewriteSummaryCheckbox;
@@ -42,31 +44,55 @@ public class ConfigurationPanel extends JPanel {
         this.apiClient = apiClient;
         this.configManager = new ConfigurationManager();
         
-        setLayout(new GridBagLayout());
+        setLayout(new BorderLayout());
+        
+        // Toolbar at top with Test, Save buttons and status
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
+        
+        testButton = new JButton("Test Connection");
+        testButton.addActionListener(e -> testConnection());
+        testButton.setPreferredSize(new Dimension(130, 28));
+        toolbar.add(testButton);
+        
+        saveButton = new JButton("Save");
+        saveButton.addActionListener(e -> saveConfiguration());
+        saveButton.setPreferredSize(new Dimension(80, 28));
+        saveButton.setEnabled(false);
+        toolbar.add(saveButton);
+        
+        toolbar.add(Box.createHorizontalStrut(10));
+        statusLabel = new JLabel("Not configured");
+        statusLabel.setForeground(Color.RED);
+        toolbar.add(statusLabel);
+        
+        add(toolbar, BorderLayout.NORTH);
+        
+        // Form panel with GridBagLayout
+        JPanel formPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.anchor = GridBagConstraints.WEST;
         
         // API Provider
         gbc.gridx = 0; gbc.gridy = 0;
-        add(new JLabel("API Provider:"), gbc);
+        formPanel.add(new JLabel("API Provider:"), gbc);
         
         providerCombo = new JComboBox<>(APIClient.GPTProvider.values());
         providerCombo.addActionListener(e -> updateModelField());
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        add(providerCombo, gbc);
+        formPanel.add(providerCombo, gbc);
         
         // API Key
         gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.NONE;
-        add(new JLabel("API Key:"), gbc);
+        formPanel.add(new JLabel("API Key:"), gbc);
         
         apiKeyField = new JPasswordField(30);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        add(apiKeyField, gbc);
+        formPanel.add(apiKeyField, gbc);
         
         // Model
         gbc.gridx = 0; gbc.gridy = 2; gbc.fill = GridBagConstraints.NONE;
-        add(new JLabel("Model:"), gbc);
+        formPanel.add(new JLabel("Model:"), gbc);
         
         // Create a panel to hold model combo and fetch button
         JPanel modelPanel = new JPanel(new BorderLayout(5, 0));
@@ -81,16 +107,16 @@ public class ConfigurationPanel extends JPanel {
         modelPanel.add(fetchModelsButton, BorderLayout.EAST);
         
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        add(modelPanel, gbc);
+        formPanel.add(modelPanel, gbc);
         
         // Custom API URL (for OpenAI Compatible provider)
         gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.NONE;
         customApiUrlLabel = new JLabel("Custom API URL:");
-        add(customApiUrlLabel, gbc);
+        formPanel.add(customApiUrlLabel, gbc);
         
         customApiUrlField = new JTextField("http://localhost:8000/v1", 30);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        add(customApiUrlField, gbc);
+        formPanel.add(customApiUrlField, gbc);
         
         // Hide by default (only show for OPENAI_COMPATIBLE provider)
         customApiUrlLabel.setVisible(false);
@@ -98,15 +124,15 @@ public class ConfigurationPanel extends JPanel {
         
         // Max Tokens
         gbc.gridx = 0; gbc.gridy = 4; gbc.fill = GridBagConstraints.NONE;
-        add(new JLabel("Max Tokens:"), gbc);
+        formPanel.add(new JLabel("Max Tokens:"), gbc);
         
         maxTokensSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_MAX_TOKENS, 100, 131072, 1024));
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        add(maxTokensSpinner, gbc);
+        formPanel.add(maxTokensSpinner, gbc);
         
         // Context Size
         gbc.gridx = 0; gbc.gridy = 5; gbc.fill = GridBagConstraints.NONE;
-        add(new JLabel("Context Size:"), gbc);
+        formPanel.add(new JLabel("Context Size:"), gbc);
         
         Integer[] contextSizes = new Integer[16];
         for (int i = 0; i < 16; i++) {
@@ -125,55 +151,55 @@ public class ConfigurationPanel extends JPanel {
             }
         });
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        add(contextSizeCombo, gbc);
+        formPanel.add(contextSizeCombo, gbc);
         
         // Temperature
         gbc.gridx = 0; gbc.gridy = 6; gbc.fill = GridBagConstraints.NONE;
-        add(new JLabel("Temperature:"), gbc);
+        formPanel.add(new JLabel("Temperature:"), gbc);
         
         temperatureSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_TEMPERATURE, 0.0, 2.0, 0.1));
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        add(temperatureSpinner, gbc);
+        formPanel.add(temperatureSpinner, gbc);
         
         // Timeout
         gbc.gridx = 0; gbc.gridy = 7; gbc.fill = GridBagConstraints.NONE;
-        add(new JLabel("Timeout (seconds):"), gbc);
+        formPanel.add(new JLabel("Timeout (seconds):"), gbc);
         
         timeoutSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_TIMEOUT_SECONDS, 5, 300, 5));
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        add(timeoutSpinner, gbc);
+        formPanel.add(timeoutSpinner, gbc);
         
         // Rewrite Options separator
         gbc.gridx = 0; gbc.gridy = 8; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(10, 5, 2, 5);
         JSeparator separator = new JSeparator();
-        add(separator, gbc);
+        formPanel.add(separator, gbc);
         
         gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
-        add(new JLabel("Rewrite Options:"), gbc);
+        formPanel.add(new JLabel("Rewrite Options:"), gbc);
         
         // Apply Function Rename checkbox
         applyFunctionRenameCheckbox = new JCheckBox("Apply function renames");
         applyFunctionRenameCheckbox.setToolTipText("Allow GhidraGPT to rename functions based on analysis");
         gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
-        add(applyFunctionRenameCheckbox, gbc);
+        formPanel.add(applyFunctionRenameCheckbox, gbc);
         
         // Apply Function Prototype checkbox
         applyFunctionPrototypeCheckbox = new JCheckBox("Apply function prototypes");
         applyFunctionPrototypeCheckbox.setToolTipText("Allow GhidraGPT to update function signatures (return type, parameters)");
         gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
-        add(applyFunctionPrototypeCheckbox, gbc);
+        formPanel.add(applyFunctionPrototypeCheckbox, gbc);
         
         // Print Suggestion Summary checkbox
         printRewriteSummaryCheckbox = new JCheckBox("Print rewrite summary");
         printRewriteSummaryCheckbox.setToolTipText("Print per-suggestion success/failure summary to console after rewrite");
         gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
-        add(printRewriteSummaryCheckbox, gbc);
+        formPanel.add(printRewriteSummaryCheckbox, gbc);
         
         // Debug mode radio buttons
         debugOffRadio = new JRadioButton("Off");
@@ -211,68 +237,81 @@ public class ConfigurationPanel extends JPanel {
         debugPanel.add(debugFileField);
         gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
-        add(debugPanel, gbc);
+        formPanel.add(debugPanel, gbc);
         
         // Custom Prompt Instructions
         gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
-        add(new JLabel("Custom Prompt Instructions:"), gbc);
+        formPanel.add(new JLabel("Custom Prompt Instructions:"), gbc);
         
         customInstructionsArea = new JTextArea(3, 30);
         customInstructionsArea.setLineWrap(true);
         customInstructionsArea.setWrapStyleWord(true);
         customInstructionsArea.setToolTipText("Extra instructions appended to the LLM prompt (e.g. 'Always use camelCase names')");
-        JScrollPane scrollPane = new JScrollPane(customInstructionsArea);
-        scrollPane.setPreferredSize(new Dimension(300, 60));
+        JScrollPane instructionsScrollPane = new JScrollPane(customInstructionsArea);
+        instructionsScrollPane.setPreferredSize(new Dimension(300, 60));
         gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 5, 5, 5);
-        add(scrollPane, gbc);
+        formPanel.add(instructionsScrollPane, gbc);
         
-        // Create button panel to center buttons horizontally
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
-        
-        testButton = new JButton("Test Connection");
-        testButton.addActionListener(e -> testConnection());
-        testButton.setPreferredSize(new Dimension(150, 30));
-        buttonPanel.add(testButton);
-        
-        JButton saveButton = new JButton("Save Configuration");
-        saveButton.addActionListener(e -> saveConfiguration());
-        saveButton.setPreferredSize(new Dimension(150, 30));
-        buttonPanel.add(saveButton);
-        
-        // Add centered button panel
-        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.anchor = GridBagConstraints.CENTER;
-        gbc.insets = new Insets(10, 5, 5, 5);
-        gbc.weighty = 0.0;
-        add(buttonPanel, gbc);
-        
-        // Status label
-        statusLabel = new JLabel("Not configured");
-        statusLabel.setForeground(Color.RED);
-        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 2;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.anchor = GridBagConstraints.CENTER;
-        gbc.insets = new Insets(5, 5, 10, 5);
-        gbc.weighty = 0.0;
-        add(statusLabel, gbc);
-        
-        // Vertical spacer to push everything to the top when panel height increases
+        // Vertical spacer to push everything to the top
         JPanel spacer = new JPanel();
         spacer.setOpaque(false);
-        gbc.gridx = 0; gbc.gridy = 18; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.BOTH;
-        gbc.weighty = 1.0; // Take up all extra vertical space
-        gbc.weightx = 1.0; // Take up all extra horizontal space
-        add(spacer, gbc);
+        gbc.weighty = 1.0;
+        gbc.weightx = 1.0;
+        formPanel.add(spacer, gbc);
+        
+        JScrollPane formScrollPane = new JScrollPane(formPanel);
+        formScrollPane.setBorder(null);
+        add(formScrollPane, BorderLayout.CENTER);
         
         updateModelField();
         
         // Load configuration from file
         loadConfiguration();
+        
+        // Attach change listeners to mark config dirty
+        Runnable markDirty = () -> { configDirty = true; saveButton.setEnabled(true); };
+        providerCombo.addActionListener(e -> markDirty.run());
+        modelCombo.addActionListener(e -> markDirty.run());
+        contextSizeCombo.addActionListener(e -> markDirty.run());
+        apiKeyField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+        });
+        customApiUrlField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+        });
+        debugPathField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+        });
+        debugFileField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+        });
+        customInstructionsArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+        });
+        maxTokensSpinner.addChangeListener(e -> markDirty.run());
+        temperatureSpinner.addChangeListener(e -> markDirty.run());
+        timeoutSpinner.addChangeListener(e -> markDirty.run());
+        applyFunctionRenameCheckbox.addActionListener(e -> markDirty.run());
+        applyFunctionPrototypeCheckbox.addActionListener(e -> markDirty.run());
+        printRewriteSummaryCheckbox.addActionListener(e -> markDirty.run());
+        debugOffRadio.addActionListener(e -> markDirty.run());
+        debugSaveRadio.addActionListener(e -> markDirty.run());
+        debugLoadRadio.addActionListener(e -> markDirty.run());
     }
     
     /**
@@ -318,6 +357,7 @@ public class ConfigurationPanel extends JPanel {
             apiClient.setModel(configManager.getModel());
             apiClient.setCustomApiUrl(configManager.getCustomApiUrl());
             apiClient.setMaxTokens(configManager.getMaxTokens());
+            apiClient.setContextSize(configManager.getContextSize());
             apiClient.setTemperature(configManager.getTemperature());
             apiClient.setTimeoutSeconds(configManager.getTimeoutSeconds());
         } else {
@@ -425,6 +465,8 @@ public class ConfigurationPanel extends JPanel {
         apiClient.setTemperature((Double) temperatureSpinner.getValue());
         apiClient.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
         
+        configDirty = false;
+        saveButton.setEnabled(false);
         statusLabel.setText("Configuration saved");
         statusLabel.setForeground(Color.BLUE);
         

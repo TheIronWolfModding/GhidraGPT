@@ -288,31 +288,33 @@ public class FunctionRewrite {
             // Parsing model response for comprehensive rewrite specification
             ComprehensiveRewriteSpec rewriteSpec = parseComprehensiveRewriteResponse(aiResponse);
             
-            // Now that JSON parsing is successful, print the completion message
+            // Now that JSON parsing is successful, close the stream box
             long duration = System.currentTimeMillis() - startTime;
             if (console != null) {
-                StringBuilder extraLines = new StringBuilder();
-                APIClient.OllamaRequestStats stats = apiClient.getLastOllamaStats();
-                if (stats != null) {
-                    extraLines.append(String.format("  %d prompt / %d output tokens | %.1f tok/s",
-                        stats.promptTokens, stats.outputTokens, stats.tokensPerSecond));
-                    if (!"stop".equals(stats.doneReason)) {
-                        extraLines.append(" | TRUNCATED");
-                    }
-                    extraLines.append("\n");
-                    if (stats.promptTokens >= apiClient.getContextSize()) {
-                        extraLines.append("  !! Prompt truncated to fit context (")
-                            .append(apiClient.getContextSize())
-                            .append(") -- increase context size\n");
-                    }
-                }
-                if (debugPrefix != null) {
-                    extraLines.append("Saved prompt and response to: ").append(debugPrefix).append("-*\n");
-                }
-                console.printStreamComplete("model analysis", duration,
-                    enhancementPrompt.length(), aiResponse.length(),
-                    extraLines.length() > 0 ? extraLines.toString() : null);
+                console.printStreamClose();
             }
+            
+            // Build stats string to print at the very end
+            StringBuilder extraLines = new StringBuilder();
+            APIClient.OllamaRequestStats stats = apiClient.getLastOllamaStats();
+            if (stats != null) {
+                extraLines.append(String.format("  %d prompt / %d output tokens | %.1f tok/s",
+                    stats.promptTokens, stats.outputTokens, stats.tokensPerSecond));
+                if (!"stop".equals(stats.doneReason)) {
+                    extraLines.append(" | TRUNCATED");
+                }
+                extraLines.append("\n");
+                if (stats.promptTokens >= apiClient.getContextSize()) {
+                    extraLines.append("  !! Prompt truncated to fit context (")
+                        .append(apiClient.getContextSize())
+                        .append(") -- increase context size\n");
+                }
+            }
+            if (debugPrefix != null) {
+                extraLines.append("Saved prompt and response to: ").append(debugPrefix).append("-*\n");
+            }
+            extraLines.append(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d\n",
+                apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1));
             
             monitor.setMessage("Applying comprehensive function rewrite...");
             monitor.setProgress(80);
@@ -355,6 +357,13 @@ public class FunctionRewrite {
                 } catch (IOException ioEx) {
                     Msg.warn(this, "Failed to save debug summary: " + ioEx.getMessage());
                 }
+            }
+            
+            // Print stats at the very end, after all suggestions
+            if (console != null) {
+                console.printAnalysisStats("model analysis", duration,
+                    enhancementPrompt.length(), aiResponse.length(),
+                    extraLines.length() > 0 ? extraLines.toString() : null);
             }
             
             monitor.setProgress(100);
