@@ -221,6 +221,22 @@ public class FunctionRewrite {
                         }
                         
                         @Override
+                        public void onThinkingResponse(String thinkingContent) {
+                            // Print header on first response
+                            if (isFirstResponse) {
+                                if (console != null) {
+                                    console.printStreamHeader();
+                                }
+                                isFirstResponse = false;
+                            }
+                            
+                            // Stream thinking to console in gray
+                            if (console != null) {
+                                console.appendThinkingText(thinkingContent);
+                            }
+                        }
+                        
+                        @Override
                         public void onComplete(String fullContent) {
                             // Don't print completion message here - wait until JSON is successfully parsed
                             monitor.setMessage("Processing model suggestions...");

@@ -240,6 +240,7 @@ public class APIClient {
      */
     public interface StreamCallback {
         void onPartialResponse(String partialContent);
+        default void onThinkingResponse(String thinkingContent) { onPartialResponse(thinkingContent); }
         void onComplete(String fullContent);
         void onError(Exception error);
     }
@@ -725,7 +726,7 @@ public class APIClient {
                                     String thinking = streamResponse.message.thinking;
                                     thinkingResponse.append(thinking);
                                     Msg.info(this, "Ollama thinking: '" + thinking + "'");
-                                    callback.onPartialResponse(thinking);
+                                    callback.onThinkingResponse(thinking);
                                 }
                                 if (streamResponse.message.content != null && !streamResponse.message.content.isEmpty()) {
                                     String content = streamResponse.message.content;

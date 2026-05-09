@@ -32,6 +32,7 @@ public class Console extends JPanel {
     private int pendingBacktickCount = 0;
     private boolean inBold = false;
     private boolean pendingAsterisk = false;
+    private boolean inThinking = false;
     
     // Cancel support
     private JButton cancelButton;
@@ -139,6 +140,16 @@ public class Console extends JPanel {
         StyleConstants.setBackground(boldCodeStyle, new Color(40, 40, 40));
         StyleConstants.setFontFamily(boldCodeStyle, "Consolas");
         StyleConstants.setBold(boldCodeStyle, true);
+        
+        // Thinking style - light gray for thinking content
+        Style thinkingStyle = textPane.addStyle("thinking", null);
+        StyleConstants.setForeground(thinkingStyle, new Color(140, 140, 140));
+        StyleConstants.setBold(thinkingStyle, false);
+        
+        // Thinking+bold style
+        Style thinkingBoldStyle = textPane.addStyle("thinkingBold", null);
+        StyleConstants.setForeground(thinkingBoldStyle, new Color(180, 180, 180));
+        StyleConstants.setBold(thinkingBoldStyle, true);
     }
     
     private JPanel createToolbar() {
@@ -316,6 +327,7 @@ public class Console extends JPanel {
         pendingBacktickCount = 0;
         inBold = false;
         pendingAsterisk = false;
+        inThinking = false;
         try {
             String header = "\n┌─ ▲ LLM Response Stream ─────────────────────────────────┐\n";
             document.insertString(document.getLength(), header, textPane.getStyle("success"));
@@ -422,11 +434,23 @@ public class Console extends JPanel {
     private Style getActiveStyle() {
         if (inCodeSpan && inBold) return textPane.getStyle("boldCode");
         if (inCodeSpan) return textPane.getStyle("code");
+        if (inThinking && inBold) return textPane.getStyle("thinkingBold");
+        if (inThinking) return textPane.getStyle("thinking");
         if (inBold) return textPane.getStyle("bold");
         return resultStyle;
     }
     
+    public void appendThinkingText(String text) {
+        inThinking = true;
+        appendFormattedText(text);
+    }
+    
     public void appendStreamingText(String text) {
+        inThinking = false;
+        appendFormattedText(text);
+    }
+    
+    private void appendFormattedText(String text) {
         SwingUtilities.invokeLater(() -> {
             try {
                 for (int i = 0; i < text.length(); i++) {
