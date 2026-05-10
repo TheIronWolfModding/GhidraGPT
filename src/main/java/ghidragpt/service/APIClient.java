@@ -288,7 +288,7 @@ public class APIClient {
         String[] lines = text.split("\n");
         for (String raw : lines) {
             String normalized = raw.trim().replaceAll("\\d+", "#");
-            if (normalized.isEmpty()) continue;
+            if (normalized.isEmpty() || normalized.length() < 10) continue;
             if (normalized.equals(lastLine[0])) {
                 repetitionCount++;
                 Msg.info(this, "Repetition check: count=" + repetitionCount + " normalized='" + normalized + "'");
@@ -735,7 +735,7 @@ public class APIClient {
             new OllamaMessage("user", prompt)
         );
         request.stream = true;
-        request.think = enableThinking ? true : null;
+        request.think = enableThinking;
         request.options = new java.util.HashMap<>(Map.of(
             "num_predict", maxTokens,
             "num_ctx", contextSize,
