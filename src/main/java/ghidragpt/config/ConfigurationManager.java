@@ -34,6 +34,7 @@ public class ConfigurationManager {
     private static final String THINKING_THRESHOLD_PROPERTY = "api.thinking.threshold.kb";
     private static final String PROCESSING_TIMEOUT_PROPERTY = "api.processing.timeout.minutes";
     private static final String MAX_RESPONSE_SIZE_PROPERTY = "api.max.response.size.kb";
+    private static final String REPETITION_THRESHOLD_PROPERTY = "api.repetition.threshold";
     
     // XOR key for API key obfuscation, not super secure but still better than plaintext
     private static final String XOR_KEY = "GhidraGPT_Sec3@Key_9f4e7a2b#8c1d6f0a@2025!";
@@ -351,6 +352,14 @@ public class ConfigurationManager {
 
     public void setMaxResponseSizeKb(int kb) {
         properties.setProperty(MAX_RESPONSE_SIZE_PROPERTY, String.valueOf(kb));
+    }
+
+    public int getRepetitionThreshold() {
+        return Integer.parseInt(properties.getProperty(REPETITION_THRESHOLD_PROPERTY, "20"));
+    }
+
+    public void setRepetitionThreshold(int threshold) {
+        properties.setProperty(REPETITION_THRESHOLD_PROPERTY, String.valueOf(threshold));
     }
     
     /**

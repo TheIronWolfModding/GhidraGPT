@@ -37,6 +37,7 @@ public class APIClient {
     public static final int DEFAULT_CONTEXT_SIZE = 32768;
     public static final double DEFAULT_TEMPERATURE = 0.1;
     public static final int DEFAULT_MAX_RESPONSE_SIZE_KB = 0;
+    public static final int DEFAULT_REPETITION_THRESHOLD = 20;
     
     private OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -52,6 +53,7 @@ public class APIClient {
     private int timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
     private int processingTimeoutMinutes = DEFAULT_PROCESSING_TIMEOUT_MINUTES;
     private int maxResponseSizeKb = DEFAULT_MAX_RESPONSE_SIZE_KB;
+    private int repetitionThreshold = DEFAULT_REPETITION_THRESHOLD;
     private boolean enableThinking = false;
     
     // Last Ollama request stats
@@ -150,6 +152,14 @@ public class APIClient {
 
     public int getMaxResponseSizeKb() {
         return maxResponseSizeKb;
+    }
+
+    public void setRepetitionThreshold(int threshold) {
+        this.repetitionThreshold = threshold;
+    }
+
+    public int getRepetitionThreshold() {
+        return repetitionThreshold;
     }
     
     public void setCustomApiUrl(String customApiUrl) {
@@ -268,6 +278,29 @@ public class APIClient {
         default void onThinkingResponse(String thinkingContent) { onPartialResponse(thinkingContent); }
         void onComplete(String fullContent);
         void onError(Exception error);
+    }
+
+    /**
+     * Checks for repetitive output by normalizing digits and counting consecutive identical lines.
+     * Returns the repetition count, or 0 to reset.
+     */
+    private int checkRepetition(String text, String[] lastLine, int repetitionCount) {
+        String[] lines = text.split("\n");
+        for (String raw : lines) {
+            String normalized = raw.trim().replaceAll("\\d+", "#");
+            if (normalized.isEmpty()) continue;
+            if (normalized.equals(lastLine[0])) {
+                repetitionCount++;
+                Msg.info(this, "Repetition check: count=" + repetitionCount + " normalized='" + normalized + "'");
+            } else {
+                lastLine[0] = normalized;
+                repetitionCount = 1;
+            }
+            if (repetitionThreshold > 0 && repetitionCount >= repetitionThreshold) {
+                return repetitionCount;
+            }
+        }
+        return repetitionCount;
     }
 
     /**
@@ -734,6 +767,16 @@ public class APIClient {
         boolean inThinkTag = false; // Tracks <think>...</think> tags in content (e.g. QwQ)
         long startTime = System.currentTimeMillis();
         long deadlineMs = processingTimeoutMinutes > 0 ? startTime + processingTimeoutMinutes * 60_000L : Long.MAX_VALUE;
+        long maxResponseBytes = maxResponseSizeKb > 0 ? maxResponseSizeKb * 1024L : Long.MAX_VALUE;
+        String cancelReason = null;
+        
+        // Repetition detection state
+        String[] lastContentLine = { "" };
+        String[] lastThinkingLine = { "" };
+        int contentRepCount = 0;
+        int thinkingRepCount = 0;
+        int lastContentLength = 0;
+        int lastThinkingLength = 0;
         
         okhttp3.Call call = httpClient.newCall(httpRequest);
         try (Response response = call.execute()) {
@@ -746,8 +789,8 @@ public class APIClient {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (contentResponse.length() == 0 && System.currentTimeMillis() > deadlineMs) {
-                        call.cancel();
-                        throw new IOException("Thinking timeout: exceeded " + processingTimeoutMinutes + " minute(s)");
+                        cancelReason = "Thinking timeout: exceeded " + processingTimeoutMinutes + " minute(s)";
+                        break;
                     }
                     if (!line.trim().isEmpty()) {
                         try {
@@ -838,6 +881,32 @@ public class APIClient {
                                 }
                             }
                             
+                            // Repetition detection -- only check when buffer has grown
+                            if (contentResponse.length() > lastContentLength) {
+                                String newContent = contentResponse.substring(lastContentLength);
+                                lastContentLength = contentResponse.length();
+                                contentRepCount = checkRepetition(newContent, lastContentLine, contentRepCount);
+                                if (repetitionThreshold > 0 && contentRepCount >= repetitionThreshold) {
+                                    cancelReason = "Repetitive content detected (" + repetitionThreshold + " consecutive similar lines) -- generation cancelled";
+                                    break;
+                                }
+                            }
+                            if (thinkingResponse.length() > lastThinkingLength) {
+                                String newThinking = thinkingResponse.substring(lastThinkingLength);
+                                lastThinkingLength = thinkingResponse.length();
+                                thinkingRepCount = checkRepetition(newThinking, lastThinkingLine, thinkingRepCount);
+                                if (repetitionThreshold > 0 && thinkingRepCount >= repetitionThreshold) {
+                                    cancelReason = "Repetitive thinking detected (" + repetitionThreshold + " consecutive similar lines) -- generation cancelled";
+                                    break;
+                                }
+                            }
+                            
+                            // Max response size check
+                            if (contentResponse.length() > maxResponseBytes) {
+                                cancelReason = "Response size limit exceeded (" + maxResponseSizeKb + " KB) -- generation cancelled";
+                                break;
+                            }
+                            
                             // Check if this is the final message
                             if (streamResponse.done != null && streamResponse.done) {
                                 if (streamResponse.promptEvalCount != null && streamResponse.evalCount != null) {
@@ -861,6 +930,13 @@ public class APIClient {
         } catch (Exception e) {
             callback.onError(e);
             throw e;
+        }
+        
+        // Handle graceful cancellation
+        if (cancelReason != null) {
+            Msg.warn(this, cancelReason);
+            callback.onPartialResponse("\n\n[" + cancelReason + "]");
+            // Still return what we have so far
         }
         
         // Flush any remaining buffered content from <think> tag detection

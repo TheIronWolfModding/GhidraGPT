@@ -45,6 +45,7 @@ public class ConfigurationPanel extends JPanel {
     private final JLabel thinkingThresholdLabel;
     private final JLabel thinkingTimeoutLabel;
     private final JSpinner maxResponseSizeSpinner;
+    private final JSpinner repetitionThresholdSpinner;
     private final JPanel toolbar;
     
     public ConfigurationPanel(APIClient apiClient) {
@@ -200,64 +201,75 @@ public class ConfigurationPanel extends JPanel {
         gbc.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(maxResponseSizeSpinner, gbc);
 
+        // Repetition threshold
+        gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 1;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.insets = new Insets(2, 5, 5, 5);
+        formPanel.add(new JLabel("Repetition threshold:"), gbc);
+        repetitionThresholdSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_REPETITION_THRESHOLD, 0, 200, 5));
+        repetitionThresholdSpinner.setToolTipText("Cancel generation after N consecutive similar lines (0 = disabled)");
+        gbc.gridx = 1; gbc.gridy = 9;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        formPanel.add(repetitionThresholdSpinner, gbc);
+
         // Rewrite Options separator
-        gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(10, 5, 2, 5);
         JSeparator separator = new JSeparator();
         formPanel.add(separator, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(new JLabel("Rewrite Options:"), gbc);
         
         // Apply Function Rename checkbox
         applyFunctionRenameCheckbox = new JCheckBox("Apply function renames");
         applyFunctionRenameCheckbox.setToolTipText("Allow GhidraGPT to rename functions based on analysis");
-        gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(applyFunctionRenameCheckbox, gbc);
         
         // Apply Function Prototype checkbox
         applyFunctionPrototypeCheckbox = new JCheckBox("Apply function prototypes");
         applyFunctionPrototypeCheckbox.setToolTipText("Allow GhidraGPT to update function signatures (return type, parameters)");
-        gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(applyFunctionPrototypeCheckbox, gbc);
-        
+
         // Print Suggestion Summary checkbox
         printRewriteSummaryCheckbox = new JCheckBox("Print rewrite summary");
         printRewriteSummaryCheckbox.setToolTipText("Print per-suggestion success/failure summary to console after rewrite");
-        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(printRewriteSummaryCheckbox, gbc);
 
         // Enable Thinking checkbox (Ollama only)
         enableThinkingCheckbox = new JCheckBox("Enable thinking (Ollama)");
         enableThinkingCheckbox.setToolTipText("Allow model to reason before answering (uses more output tokens)");
-        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(enableThinkingCheckbox, gbc);
 
         // Thinking threshold spinner
         thinkingThresholdLabel = new JLabel("Min thinking prompt (KB):");
-        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 1;
+        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 1;
         gbc.insets = new Insets(2, 20, 2, 5);
         formPanel.add(thinkingThresholdLabel, gbc);
         thinkingThresholdSpinner = new JSpinner(new SpinnerNumberModel(10, 0, 1000, 1));
         thinkingThresholdSpinner.setToolTipText("Thinking is only sent when prompt size exceeds this threshold (0 = always think)");
-        gbc.gridx = 1; gbc.gridy = 15;
+        gbc.gridx = 1; gbc.gridy = 16;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(thinkingThresholdSpinner, gbc);
 
         // Thinking timeout spinner
         thinkingTimeoutLabel = new JLabel("Thinking timeout (min):");
-        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 1;
+        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 1;
         gbc.insets = new Insets(2, 20, 5, 5);
         formPanel.add(thinkingTimeoutLabel, gbc);
         processingTimeoutSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_PROCESSING_TIMEOUT_MINUTES, 0, 120, 1));
         processingTimeoutSpinner.setToolTipText("Max time for model thinking phase in minutes (0 = no limit). Content generation is not affected.");
-        gbc.gridx = 1; gbc.gridy = 16;
+        gbc.gridx = 1; gbc.gridy = 17;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(processingTimeoutSpinner, gbc);
         enableThinkingCheckbox.addActionListener(e -> updateThinkingThresholdState());
@@ -296,12 +308,12 @@ public class ConfigurationPanel extends JPanel {
         debugPanel.add(debugPathField);
         debugPanel.add(new JLabel("File:"));
         debugPanel.add(debugFileField);
-        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 18; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(debugPanel, gbc);
         
         // Custom Prompt Instructions
-        gbc.gridx = 0; gbc.gridy = 18; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 19; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
         formPanel.add(new JLabel("Custom Prompt Instructions:"), gbc);
         
@@ -311,7 +323,7 @@ public class ConfigurationPanel extends JPanel {
         customInstructionsArea.setToolTipText("Extra instructions appended to the LLM prompt (e.g. 'Always use camelCase names')");
         JScrollPane instructionsScrollPane = new JScrollPane(customInstructionsArea);
         instructionsScrollPane.setPreferredSize(new Dimension(300, 60));
-        gbc.gridx = 0; gbc.gridy = 19; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 20; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(instructionsScrollPane, gbc);
@@ -319,7 +331,7 @@ public class ConfigurationPanel extends JPanel {
         // Vertical spacer to push everything to the top
         JPanel spacer = new JPanel();
         spacer.setOpaque(false);
-        gbc.gridx = 0; gbc.gridy = 20; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 21; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.weighty = 1.0;
         gbc.weightx = 1.0;
@@ -370,6 +382,7 @@ public class ConfigurationPanel extends JPanel {
         timeoutSpinner.addChangeListener(e -> markDirty.run());
         processingTimeoutSpinner.addChangeListener(e -> markDirty.run());
         maxResponseSizeSpinner.addChangeListener(e -> markDirty.run());
+        repetitionThresholdSpinner.addChangeListener(e -> markDirty.run());
         applyFunctionRenameCheckbox.addActionListener(e -> markDirty.run());
         applyFunctionPrototypeCheckbox.addActionListener(e -> markDirty.run());
         printRewriteSummaryCheckbox.addActionListener(e -> markDirty.run());
@@ -402,6 +415,7 @@ public class ConfigurationPanel extends JPanel {
         timeoutSpinner.setValue(configManager.getTimeoutSeconds());
         processingTimeoutSpinner.setValue(configManager.getProcessingTimeoutMinutes());
         maxResponseSizeSpinner.setValue(configManager.getMaxResponseSizeKb());
+        repetitionThresholdSpinner.setValue(configManager.getRepetitionThreshold());
         applyFunctionRenameCheckbox.setSelected(configManager.isApplyFunctionRename());
         applyFunctionPrototypeCheckbox.setSelected(configManager.isApplyFunctionPrototype());
         printRewriteSummaryCheckbox.setSelected(configManager.isPrintRewriteSummary());
@@ -536,6 +550,7 @@ public class ConfigurationPanel extends JPanel {
         configManager.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
         configManager.setProcessingTimeoutMinutes((Integer) processingTimeoutSpinner.getValue());
         configManager.setMaxResponseSizeKb((Integer) maxResponseSizeSpinner.getValue());
+        configManager.setRepetitionThreshold((Integer) repetitionThresholdSpinner.getValue());
         configManager.setApplyFunctionRename(applyFunctionRenameCheckbox.isSelected());
         configManager.setApplyFunctionPrototype(applyFunctionPrototypeCheckbox.isSelected());
         configManager.setPrintRewriteSummary(printRewriteSummaryCheckbox.isSelected());
@@ -558,6 +573,7 @@ public class ConfigurationPanel extends JPanel {
         apiClient.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
         apiClient.setProcessingTimeoutMinutes((Integer) processingTimeoutSpinner.getValue());
         apiClient.setMaxResponseSizeKb((Integer) maxResponseSizeSpinner.getValue());
+        apiClient.setRepetitionThreshold((Integer) repetitionThresholdSpinner.getValue());
         apiClient.setEnableThinking(enableThinkingCheckbox.isSelected());
         
         configDirty = false;
