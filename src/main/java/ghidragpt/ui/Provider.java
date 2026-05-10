@@ -4,6 +4,7 @@ import docking.ActionContext;
 import docking.ComponentProvider;
 import docking.WindowPosition;
 import docking.action.DockingAction;
+import docking.action.KeyBindingData;
 import docking.action.MenuData;
 // import docking.action.ToolBarData;
 import ghidra.app.context.ListingActionContext;
@@ -91,6 +92,55 @@ public class Provider extends ComponentProvider {
         createEnhanceFunctionAction();
         createExplainAction();
         createVulnerabilityAction();
+        createShowConfigAction();
+        createShowConsoleAction();
+        createShowDataTypesAction();
+    }
+
+    private void createShowConfigAction() {
+        DockingAction action = new DockingAction("GhidraGPT Configuration", getName()) {
+            @Override
+            public void actionPerformed(ActionContext context) {
+                setVisible(true);
+                tabbedPane.setSelectedIndex(0);
+                toFront();
+            }
+        };
+        action.setKeyBindingData(new KeyBindingData(
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F2, 0)));
+        action.setDescription("Show GhidraGPT Configuration panel");
+        plugin.getTool().addAction(action);
+    }
+
+    private void createShowConsoleAction() {
+        DockingAction action = new DockingAction("GhidraGPT Console", getName()) {
+            @Override
+            public void actionPerformed(ActionContext context) {
+                setVisible(true);
+                tabbedPane.setSelectedIndex(1);
+                toFront();
+            }
+        };
+        action.setKeyBindingData(new KeyBindingData(
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F3, 0)));
+        action.setDescription("Show GhidraGPT Console");
+        plugin.getTool().addAction(action);
+    }
+
+    private void createShowDataTypesAction() {
+        DockingAction action = new DockingAction("Data Type Manager", getName()) {
+            @Override
+            public void actionPerformed(ActionContext context) {
+                ComponentProvider dtProvider = plugin.getTool().getComponentProvider("DataTypes Provider");
+                if (dtProvider != null) {
+                    plugin.getTool().showComponentProvider(dtProvider, true);
+                }
+            }
+        };
+        action.setKeyBindingData(new KeyBindingData(
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_F4, 0)));
+        action.setDescription("Show Data Type Manager window");
+        plugin.getTool().addAction(action);
     }
 
     private void createEnhanceFunctionAction() {

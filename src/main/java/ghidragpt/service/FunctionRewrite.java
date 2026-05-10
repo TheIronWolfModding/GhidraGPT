@@ -6,6 +6,7 @@ import ghidra.program.model.listing.CodeUnit;
 import ghidra.program.model.listing.CommentType;
 import ghidra.program.model.symbol.Symbol;
 import ghidra.program.model.symbol.SymbolTable;
+import ghidra.program.model.symbol.SymbolType;
 import ghidra.program.model.pcode.HighFunction;
 import ghidra.program.model.pcode.HighSymbol;
 import ghidra.program.model.pcode.HighVariable;
@@ -398,7 +399,9 @@ public class FunctionRewrite {
                             fw.write(line + "\n");
                         }
                         for (Map.Entry<String, String> entry : rewriteSpec.classSuggestions.entrySet()) {
-                            fw.write("[SUGGESTION] [Class Name] " + entry.getKey() + " -> " + entry.getValue() + "\n");
+                            if (!entry.getKey().startsWith("cls_0x")) {
+                                fw.write("[SUGGESTION] [Class Name] " + entry.getKey() + " -> " + entry.getValue() + "\n");
+                            }
                         }
                         
                         // Stats footer
@@ -1227,6 +1230,9 @@ public class FunctionRewrite {
         totalChanges += spec.globalTypes.size();
         totalChanges += spec.globalRenames.size();
         totalChanges += spec.functionRenames.size();
+        for (String key : spec.classSuggestions.keySet()) {
+            if (key.startsWith("cls_0x") && !key.equals(spec.classSuggestions.get(key))) totalChanges++;
+        }
         
         int currentChange = 0;
         long lastStatusTime = System.currentTimeMillis();
@@ -1600,6 +1606,74 @@ public class FunctionRewrite {
                 lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
             }
             
+            // 10. Apply class renames (only for cls_0x* prefixed classes)
+            int classRenameCount = 0;
+            for (Map.Entry<String, String> entry : spec.classSuggestions.entrySet()) {
+                if (monitor.isCancelled()) break;
+                String oldClassName = entry.getKey();
+                String newClassName = entry.getValue();
+                
+                // Only rename auto-generated cls_0x* classes
+                if (!oldClassName.startsWith("cls_0x")) continue;
+                if (oldClassName.equals(newClassName)) continue;
+                
+                // Normalize: ensure C_ prefix
+                if (!newClassName.startsWith("C_")) {
+                    newClassName = "C_" + newClassName;
+                }
+                
+                boolean structRenamed = false;
+                boolean namespaceRenamed = false;
+                String failReason = null;
+                
+                // Rename struct in DataTypeManager
+                DataTypeManager dtm = program.getDataTypeManager();
+                Iterator<DataType> allTypes = dtm.getAllDataTypes();
+                while (allTypes.hasNext()) {
+                    DataType dt = allTypes.next();
+                    if (dt.getName().equals(oldClassName) && dt instanceof Structure) {
+                        try {
+                            dt.setName(newClassName);
+                            structRenamed = true;
+                        } catch (Exception e) {
+                            failReason = "Struct rename failed: " + e.getMessage();
+                        }
+                        break;
+                    }
+                }
+                
+                // Rename namespace/class in SymbolTable
+                SymbolTable classSymTable = program.getSymbolTable();
+                Iterator<Symbol> classSyms = classSymTable.getSymbols(oldClassName);
+                while (classSyms.hasNext()) {
+                    Symbol sym = classSyms.next();
+                    if (sym.getSymbolType() == SymbolType.NAMESPACE || sym.getSymbolType() == SymbolType.CLASS) {
+                        try {
+                            sym.setName(newClassName, SourceType.USER_DEFINED);
+                            namespaceRenamed = true;
+                        } catch (Exception e) {
+                            if (failReason == null) failReason = "Namespace rename failed: " + e.getMessage();
+                            else failReason += "; Namespace rename failed: " + e.getMessage();
+                        }
+                        break;
+                    }
+                }
+                
+                if (structRenamed || namespaceRenamed) {
+                    classRenameCount++;
+                    String detail = oldClassName + " -> " + newClassName;
+                    if (structRenamed && namespaceRenamed) detail += " (struct + namespace)";
+                    else if (structRenamed) detail += " (struct only, namespace not found)";
+                    else detail += " (namespace only, struct not found)";
+                    result.suggestionOutcomes.add(new SuggestionOutcome("Class Rename", detail, true, null));
+                } else {
+                    result.suggestionOutcomes.add(new SuggestionOutcome("Class Rename",
+                        oldClassName + " -> " + newClassName, false, failReason != null ? failReason : "Class not found"));
+                }
+                currentChange++;
+                lastStatusTime = maybePrintStatus(printStatus, currentChange, totalChanges, lastStatusTime);
+            }
+            
             success = true;
             
             // Build result message
@@ -1648,7 +1722,11 @@ public class FunctionRewrite {
                 message.append("Successfully renamed ").append(funcRenameCount).append(" called function(s)\n");
             }
             
-            if (!result.functionRenamed && renameCount == 0 && fieldRenameCount == 0 && typeCount == 0 && fieldTypeCount == 0 && commentCount == 0 && globalRenameCount == 0 && globalTypeCount == 0 && funcRenameCount == 0 && spec.functionPrototype == null) {
+            if (classRenameCount > 0) {
+                message.append("Successfully renamed ").append(classRenameCount).append(" class(es)\n");
+            }
+            
+            if (!result.functionRenamed && renameCount == 0 && fieldRenameCount == 0 && typeCount == 0 && fieldTypeCount == 0 && commentCount == 0 && globalRenameCount == 0 && globalTypeCount == 0 && funcRenameCount == 0 && classRenameCount == 0 && spec.functionPrototype == null) {
                 message.append("No changes were applied");
             }
             
@@ -1691,10 +1769,12 @@ public class FunctionRewrite {
             lines.addAll(skipLines);
             lines.addAll(failLines);
             
-            // Append class name suggestions (informational only, no renames applied)
+            // Append class name suggestions for already-named classes (not cls_0x*)
             if (!spec.classSuggestions.isEmpty()) {
                 for (Map.Entry<String, String> entry : spec.classSuggestions.entrySet()) {
-                    lines.add(new String[]{"SUGGESTION", "[SUGGESTION] [Class Name] " + entry.getKey() + " -> " + entry.getValue()});
+                    if (!entry.getKey().startsWith("cls_0x")) {
+                        lines.add(new String[]{"SUGGESTION", "[SUGGESTION] [Class Name] " + entry.getKey() + " -> " + entry.getValue()});
+                    }
                 }
             }
             
