@@ -730,6 +730,8 @@ public class APIClient {
     private String processOllamaStream(Request httpRequest, StreamCallback callback) throws IOException {
         StringBuilder contentResponse = new StringBuilder();
         StringBuilder thinkingResponse = new StringBuilder();
+        StringBuilder tagBuffer = new StringBuilder(); // Buffer for detecting partial <think> / </think> tags
+        boolean inThinkTag = false; // Tracks <think>...</think> tags in content (e.g. QwQ)
         long startTime = System.currentTimeMillis();
         long deadlineMs = processingTimeoutMinutes > 0 ? startTime + processingTimeoutMinutes * 60_000L : Long.MAX_VALUE;
         
@@ -754,17 +756,85 @@ public class APIClient {
                             
                             OllamaStreamResponse streamResponse = objectMapper.readValue(line, OllamaStreamResponse.class);
                             if (streamResponse.message != null) {
+                                // Native thinking field (Qwen3, etc.)
                                 if (streamResponse.message.thinking != null && !streamResponse.message.thinking.isEmpty()) {
                                     String thinking = streamResponse.message.thinking;
                                     thinkingResponse.append(thinking);
                                     Msg.info(this, "Ollama thinking: '" + thinking + "'");
                                     callback.onThinkingResponse(thinking);
                                 }
+                                // Content field -- may contain <think> tags (QwQ, DeepSeek-R1, etc.)
                                 if (streamResponse.message.content != null && !streamResponse.message.content.isEmpty()) {
                                     String content = streamResponse.message.content;
-                                    contentResponse.append(content);
-                                    Msg.info(this, "Ollama content: '" + content + "'");
-                                    callback.onPartialResponse(content);
+                                    tagBuffer.append(content);
+                                    
+                                    // Process buffered content for <think> tags
+                                    String buf = tagBuffer.toString();
+                                    tagBuffer.setLength(0);
+                                    
+                                    while (!buf.isEmpty()) {
+                                        if (inThinkTag) {
+                                            int closeIdx = buf.indexOf("</think>");
+                                            if (closeIdx >= 0) {
+                                                // End of thinking block
+                                                String thinkChunk = buf.substring(0, closeIdx);
+                                                if (!thinkChunk.isEmpty()) {
+                                                    thinkingResponse.append(thinkChunk);
+                                                    callback.onThinkingResponse(thinkChunk);
+                                                }
+                                                inThinkTag = false;
+                                                buf = buf.substring(closeIdx + "</think>".length());
+                                            } else {
+                                                // Check for partial </think> at end of buffer
+                                                int lastLt = buf.lastIndexOf('<');
+                                                if (lastLt >= 0 && "</think>".startsWith(buf.substring(lastLt))) {
+                                                    // Flush thinking before partial tag, buffer the rest
+                                                    if (lastLt > 0) {
+                                                        String thinkChunk = buf.substring(0, lastLt);
+                                                        thinkingResponse.append(thinkChunk);
+                                                        callback.onThinkingResponse(thinkChunk);
+                                                    }
+                                                    tagBuffer.append(buf.substring(lastLt));
+                                                } else {
+                                                    // No tag, flush as thinking
+                                                    thinkingResponse.append(buf);
+                                                    callback.onThinkingResponse(buf);
+                                                }
+                                                buf = "";
+                                            }
+                                        } else {
+                                            int openIdx = buf.indexOf("<think>");
+                                            if (openIdx == 0) {
+                                                // Think tag at start
+                                                inThinkTag = true;
+                                                buf = buf.substring("<think>".length());
+                                            } else if (openIdx > 0) {
+                                                // Content before think tag
+                                                String contentChunk = buf.substring(0, openIdx);
+                                                contentResponse.append(contentChunk);
+                                                callback.onPartialResponse(contentChunk);
+                                                inThinkTag = true;
+                                                buf = buf.substring(openIdx + "<think>".length());
+                                            } else {
+                                                // Check for partial <think> at end of buffer
+                                                int lastLt = buf.lastIndexOf('<');
+                                                if (lastLt >= 0 && "<think>".startsWith(buf.substring(lastLt))) {
+                                                    // Flush content before partial tag, buffer the rest
+                                                    if (lastLt > 0) {
+                                                        String contentChunk = buf.substring(0, lastLt);
+                                                        contentResponse.append(contentChunk);
+                                                        callback.onPartialResponse(contentChunk);
+                                                    }
+                                                    tagBuffer.append(buf.substring(lastLt));
+                                                } else {
+                                                    // Normal content, no tags
+                                                    contentResponse.append(buf);
+                                                    callback.onPartialResponse(buf);
+                                                }
+                                                buf = "";
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             
@@ -791,6 +861,18 @@ public class APIClient {
         } catch (Exception e) {
             callback.onError(e);
             throw e;
+        }
+        
+        // Flush any remaining buffered content from <think> tag detection
+        if (tagBuffer.length() > 0) {
+            String remaining = tagBuffer.toString();
+            if (inThinkTag) {
+                thinkingResponse.append(remaining);
+                callback.onThinkingResponse(remaining);
+            } else {
+                contentResponse.append(remaining);
+                callback.onPartialResponse(remaining);
+            }
         }
         
         lastThinkingContent = thinkingResponse.length() > 0 ? thinkingResponse.toString() : null;
