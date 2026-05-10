@@ -36,6 +36,7 @@ public class APIClient {
     public static final int DEFAULT_MAX_TOKENS = 16384;
     public static final int DEFAULT_CONTEXT_SIZE = 32768;
     public static final double DEFAULT_TEMPERATURE = 0.1;
+    public static final int DEFAULT_MAX_RESPONSE_SIZE_KB = 0;
     
     private OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -50,6 +51,7 @@ public class APIClient {
     private double temperature = DEFAULT_TEMPERATURE;
     private int timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
     private int processingTimeoutMinutes = DEFAULT_PROCESSING_TIMEOUT_MINUTES;
+    private int maxResponseSizeKb = DEFAULT_MAX_RESPONSE_SIZE_KB;
     private boolean enableThinking = false;
     
     // Last Ollama request stats
@@ -140,6 +142,14 @@ public class APIClient {
 
     public int getProcessingTimeoutMinutes() {
         return processingTimeoutMinutes;
+    }
+
+    public void setMaxResponseSizeKb(int kb) {
+        this.maxResponseSizeKb = kb;
+    }
+
+    public int getMaxResponseSizeKb() {
+        return maxResponseSizeKb;
     }
     
     public void setCustomApiUrl(String customApiUrl) {
