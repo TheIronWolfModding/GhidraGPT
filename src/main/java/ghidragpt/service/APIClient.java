@@ -1,6 +1,7 @@
 package ghidragpt.service;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -691,7 +692,7 @@ public class APIClient {
             new OllamaMessage("user", prompt)
         );
         request.stream = true;
-        request.think = enableThinking;
+        request.think = enableThinking ? true : null;
         request.options = new java.util.HashMap<>(Map.of(
             "num_predict", maxTokens,
             "num_ctx", contextSize,
@@ -732,9 +733,9 @@ public class APIClient {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.body().byteStream()))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    if (System.currentTimeMillis() > deadlineMs) {
+                    if (contentResponse.length() == 0 && System.currentTimeMillis() > deadlineMs) {
                         call.cancel();
-                        throw new IOException("Processing timeout: exceeded " + processingTimeoutMinutes + " minute(s)");
+                        throw new IOException("Thinking timeout: exceeded " + processingTimeoutMinutes + " minute(s)");
                     }
                     if (!line.trim().isEmpty()) {
                         try {
@@ -1444,6 +1445,7 @@ public class APIClient {
     
     // Ollama API DTOs
     @JsonIgnoreProperties(ignoreUnknown = true)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class OllamaRequest {
         public String model;
         public List<OllamaMessage> messages;

@@ -43,6 +43,7 @@ public class ConfigurationPanel extends JPanel {
     private final JCheckBox enableThinkingCheckbox;
     private final JSpinner thinkingThresholdSpinner;
     private final JLabel thinkingThresholdLabel;
+    private final JLabel thinkingTimeoutLabel;
     private final JPanel toolbar;
     
     public ConfigurationPanel(APIClient apiClient) {
@@ -187,64 +188,66 @@ public class ConfigurationPanel extends JPanel {
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(timeoutSpinner, gbc);
 
-        // Processing Timeout
-        gbc.gridx = 0; gbc.gridy = 8; gbc.fill = GridBagConstraints.NONE;
-        formPanel.add(new JLabel("Processing timeout (min):"), gbc);
-        
-        processingTimeoutSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_PROCESSING_TIMEOUT_MINUTES, 0, 120, 1));
-        processingTimeoutSpinner.setToolTipText("Max processing time in minutes (0 = no limit)");
-        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
-        formPanel.add(processingTimeoutSpinner, gbc);
-        
         // Rewrite Options separator
-        gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 8; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(10, 5, 2, 5);
         JSeparator separator = new JSeparator();
         formPanel.add(separator, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(new JLabel("Rewrite Options:"), gbc);
         
         // Apply Function Rename checkbox
         applyFunctionRenameCheckbox = new JCheckBox("Apply function renames");
         applyFunctionRenameCheckbox.setToolTipText("Allow GhidraGPT to rename functions based on analysis");
-        gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(applyFunctionRenameCheckbox, gbc);
         
         // Apply Function Prototype checkbox
         applyFunctionPrototypeCheckbox = new JCheckBox("Apply function prototypes");
         applyFunctionPrototypeCheckbox.setToolTipText("Allow GhidraGPT to update function signatures (return type, parameters)");
-        gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(applyFunctionPrototypeCheckbox, gbc);
         
         // Print Suggestion Summary checkbox
         printRewriteSummaryCheckbox = new JCheckBox("Print rewrite summary");
         printRewriteSummaryCheckbox.setToolTipText("Print per-suggestion success/failure summary to console after rewrite");
-        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(printRewriteSummaryCheckbox, gbc);
 
         // Enable Thinking checkbox (Ollama only)
         enableThinkingCheckbox = new JCheckBox("Enable thinking (Ollama)");
         enableThinkingCheckbox.setToolTipText("Allow model to reason before answering (uses more output tokens)");
-        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(enableThinkingCheckbox, gbc);
 
         // Thinking threshold spinner
         thinkingThresholdLabel = new JLabel("Min thinking prompt (KB):");
-        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 1;
-        gbc.insets = new Insets(2, 20, 5, 5);
+        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 1;
+        gbc.insets = new Insets(2, 20, 2, 5);
         formPanel.add(thinkingThresholdLabel, gbc);
         thinkingThresholdSpinner = new JSpinner(new SpinnerNumberModel(10, 0, 1000, 1));
         thinkingThresholdSpinner.setToolTipText("Thinking is only sent when prompt size exceeds this threshold (0 = always think)");
+        gbc.gridx = 1; gbc.gridy = 14;
+        gbc.insets = new Insets(2, 5, 2, 5);
+        formPanel.add(thinkingThresholdSpinner, gbc);
+
+        // Thinking timeout spinner
+        thinkingTimeoutLabel = new JLabel("Thinking timeout (min):");
+        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 1;
+        gbc.insets = new Insets(2, 20, 5, 5);
+        formPanel.add(thinkingTimeoutLabel, gbc);
+        processingTimeoutSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_PROCESSING_TIMEOUT_MINUTES, 0, 120, 1));
+        processingTimeoutSpinner.setToolTipText("Max time for model thinking phase in minutes (0 = no limit). Content generation is not affected.");
         gbc.gridx = 1; gbc.gridy = 15;
         gbc.insets = new Insets(2, 5, 5, 5);
-        formPanel.add(thinkingThresholdSpinner, gbc);
+        formPanel.add(processingTimeoutSpinner, gbc);
         enableThinkingCheckbox.addActionListener(e -> updateThinkingThresholdState());
         
         // Debug mode radio buttons
@@ -434,6 +437,8 @@ public class ConfigurationPanel extends JPanel {
         boolean enabled = enableThinkingCheckbox.isSelected();
         thinkingThresholdSpinner.setEnabled(enabled);
         thinkingThresholdLabel.setEnabled(enabled);
+        processingTimeoutSpinner.setEnabled(enabled);
+        thinkingTimeoutLabel.setEnabled(enabled);
     }
     
     private void updateModelField() {
@@ -578,6 +583,11 @@ public class ConfigurationPanel extends JPanel {
         apiClient.setProvider(selectedProvider);
         apiClient.setModel(model);
         apiClient.setCustomApiUrl(customApiUrl);
+        apiClient.setMaxTokens((Integer) maxTokensSpinner.getValue());
+        apiClient.setContextSize((Integer) contextSizeCombo.getSelectedItem());
+        apiClient.setTemperature((Double) temperatureSpinner.getValue());
+        apiClient.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
+        apiClient.setEnableThinking(enableThinkingCheckbox.isSelected());
 
         testButton.setEnabled(false);
         testButton.setText("Testing...");
