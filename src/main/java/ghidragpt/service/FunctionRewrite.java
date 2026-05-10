@@ -882,6 +882,8 @@ public class FunctionRewrite {
         
         prompt.append("Analysis Instructions:\n");
         prompt.append("- Focus on renaming generic names (param_1, local_38, uStack_20, DAT_*, FUN_*, field_0x*, mbr_*, cls_0x*) to descriptive names based on usage context\n");
+        prompt.append("- Only include variables/fields where you can determine a meaningful semantic name from the code context\n");
+        prompt.append("- OMIT variables you cannot meaningfully name -- do NOT use generic names like temp1, tempDouble2, varN, etc.\n");
         prompt.append("- Suggest a proper function prototype if the current one seems incorrect\n\n");
         
         prompt.append("Answer strictly in this JSON format with no extra output:\n");
