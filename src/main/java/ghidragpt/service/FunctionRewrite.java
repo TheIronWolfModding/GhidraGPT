@@ -1437,6 +1437,9 @@ public class FunctionRewrite {
                     result.variableRenames.put(oldName, newName);
                     result.suggestionOutcomes.add(new SuggestionOutcome("Field Rename", oldName + " \u2192 " + newName, true, null));
                     Msg.info(this, "Renamed struct field: " + oldName + " -> " + newName);
+                } else if (oldName.startsWith("field_0x") || oldName.startsWith("field")) {
+                    // Nested field -- cannot reliably apply, show as suggestion
+                    result.suggestionOutcomes.add(new SuggestionOutcome("Nested Field Rename", oldName + " \u2192 " + newName, false, "Nested struct field - rename manually"));
                 } else {
                     result.suggestionOutcomes.add(new SuggestionOutcome("Field Rename", oldName + " \u2192 " + newName, false, "Field not found in struct"));
                     result.errors.add("Failed to rename field: " + oldName);
@@ -2437,7 +2440,7 @@ public class FunctionRewrite {
     
     private boolean tryRenameFieldOnStruct(Structure topStruct, String oldName, String newName, int maxSize) {
         try {
-            // Strategy 1: Search by field name across struct hierarchy
+            // Strategy 1: Search by field name on this struct's direct fields
             DataTypeComponent found = findComponentByName(topStruct, oldName);
             if (found != null) {
                 try {
@@ -2450,14 +2453,13 @@ public class FunctionRewrite {
                 }
             }
             
-            // Strategy 2: Offset-based lookup on this struct
+            // Strategy 2: Offset-based lookup on this struct (direct fields only)
             Matcher offsetMatcher = Pattern.compile("0x([0-9a-fA-F]+)").matcher(oldName);
             if (offsetMatcher.find()) {
                 int fieldOffset = Integer.parseInt(offsetMatcher.group(1), 16);
                 
-                // Skip if offset is beyond this struct's size (probably belongs to another struct)
+                // Skip if offset is beyond this struct's size
                 if (fieldOffset >= topStruct.getLength()) {
-                    Msg.info(this, "tryRenameFieldOnStruct " + oldName + ": offset 0x" + Integer.toHexString(fieldOffset) + " beyond " + topStruct.getName() + " length " + topStruct.getLength());
                     return false;
                 }
                 
@@ -2498,30 +2500,13 @@ public class FunctionRewrite {
                             Msg.warn(this, "Duplicate field name: " + newName + " on struct " + topStruct.getName());
                             return false;
                         }
-                    } else {
-                        Msg.info(this, "tryRenameFieldOnStruct " + oldName + ": field at offset already named '" + currentFieldName + "' on " + topStruct.getName());
-                    }
-                }
-                
-                // Try nested structs at that offset
-                DataTypeComponent nestedResult = findComponentByOffsetInNestedStructs(topStruct, fieldOffset);
-                if (nestedResult != null) {
-                    String currentFieldName = nestedResult.getFieldName();
-                    if (currentFieldName == null || isDefaultFieldName(currentFieldName)) {
-                        try {
-                            nestedResult.setFieldName(newName);
-                            Msg.info(this, "Renamed nested struct field: " + oldName + " -> " + newName + " at offset 0x" + Integer.toHexString(fieldOffset));
-                            return true;
-                        } catch (DuplicateNameException e) {
-                            Msg.warn(this, "Duplicate field name: " + newName);
-                            return false;
-                        }
                     }
                 }
             }
             
             return false;
         } catch (Exception e) {
+            Msg.error(this, "Error renaming field " + oldName + " on " + topStruct.getName(), e);
             return false;
         }
     }
@@ -2536,14 +2521,6 @@ public class FunctionRewrite {
             String name = component.getFieldName();
             if (fieldName.equals(name)) {
                 return component;
-            }
-            // Also match Ghidra's auto-generated display name (e.g. field_0x4444)
-            // getFieldName() returns null for these, but getDefaultFieldName() matches
-            if (name == null && fieldName.startsWith("field_0x")) {
-                String defaultName = component.getDefaultFieldName();
-                if (fieldName.equals(defaultName)) {
-                    return component;
-                }
             }
         }
         // Second pass: recurse into nested structs
