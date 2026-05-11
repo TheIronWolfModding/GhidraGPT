@@ -90,6 +90,42 @@ public class FunctionRewrite {
     private final ConfigurationManager configManager;
     private GhidraFunctionModifier functionModifier;
     
+    /**
+     * Build multi-line options string showing all config values, one per row.
+     */
+    private String buildOptionsString(String prefix, boolean thinkingActive) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(prefix).append("Options:\n");
+        for (String[] opt : buildOptionsArray(thinkingActive)) {
+            sb.append(prefix).append("  ").append(opt[0]).append(" = ").append(opt[1]).append("\n");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Build options as name/value pairs for both plain-text and styled console output.
+     */
+    private String[][] buildOptionsArray(boolean thinkingActive) {
+        java.util.List<String[]> opts = new java.util.ArrayList<>();
+        opts.add(new String[]{"temperature", String.format("%.2f", apiClient.getTemperature())});
+        opts.add(new String[]{"max_tokens", String.valueOf(apiClient.getMaxTokens())});
+        opts.add(new String[]{"context", (apiClient.getContextSize() / 1024) + "KB"});
+        opts.add(new String[]{"think", String.valueOf(thinkingActive)});
+        opts.add(new String[]{"timeout", apiClient.getTimeoutSeconds() + "s"});
+        opts.add(new String[]{"processing_timeout", apiClient.getProcessingTimeoutMinutes() + "min"});
+        opts.add(new String[]{"max_response", apiClient.getMaxResponseSizeKb() + "KB"});
+        if (configManager != null) {
+            opts.add(new String[]{"rename_locals", String.valueOf(configManager.isRenameNamedLocals())});
+            opts.add(new String[]{"rename_fields", String.valueOf(configManager.isRenameNamedFields())});
+            opts.add(new String[]{"rename_functions", String.valueOf(configManager.isRenameNamedFunctions())});
+            opts.add(new String[]{"rename_classes", String.valueOf(configManager.isRenameNamedClasses())});
+            opts.add(new String[]{"apply_func_rename", String.valueOf(configManager.isApplyFunctionRename())});
+            opts.add(new String[]{"apply_prototype", String.valueOf(configManager.isApplyFunctionPrototype())});
+            opts.add(new String[]{"print_summary", String.valueOf(configManager.isPrintRewriteSummary())});
+        }
+        return opts.toArray(new String[0][]);
+    }
+
     public FunctionRewrite(APIClient apiClient, Console console, ConfigurationManager configManager) {
         this.apiClient = apiClient;
         this.console = console;
@@ -205,9 +241,7 @@ public class FunctionRewrite {
                     if (console != null) {
                         console.printAnalysisHeader("Comprehensive Function Rewrite", function.getName(), 
                             provider.toString(), apiClient.getModel(), enhancementPrompt.length());
-                        console.appendInfo(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d think=%b",
-                            apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1,
-                            thinkingActive));
+                        console.appendOptions(buildOptionsArray(thinkingActive));
                     }
                     
                     final StringBuilder streamBuffer = new StringBuilder();
@@ -353,9 +387,6 @@ public class FunctionRewrite {
             if (debugPrefix != null) {
                 extraLines.append("Saved prompt and response to: ").append(debugPrefix).append("-*\n");
             }
-            extraLines.append(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d think=%b\n",
-                apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1,
-                apiClient.isEnableThinking()));
             
             monitor.setMessage("Applying comprehensive function rewrite...");
             monitor.setProgress(80);
@@ -376,9 +407,7 @@ public class FunctionRewrite {
                         fw.write("Provider: " + apiClient.getProvider() + "\n");
                         fw.write("Model: " + apiClient.getModel() + "\n");
                         fw.write("Size: " + enhancementPrompt.length() + " chars\n");
-                        fw.write(String.format("Options: temperature=%.2f max_tokens=%d context=%d repeat_penalty=%.1f repeat_last_n=%d think=%b\n",
-                            apiClient.getTemperature(), apiClient.getMaxTokens(), apiClient.getContextSize(), 1.3, -1,
-                            apiClient.isEnableThinking()));
+                        fw.write(buildOptionsString("", apiClient.isEnableThinking()));
                         fw.write("------------------------------------------------------------\n");
                         
                         for (SuggestionOutcome outcome : result.suggestionOutcomes) {
@@ -423,9 +452,11 @@ public class FunctionRewrite {
             
             // Print stats at the very end, after all suggestions
             if (console != null) {
+                String optionsBlock = buildOptionsString("  ", apiClient.isEnableThinking());
+                String extra = optionsBlock + extraLines.toString();
                 console.printAnalysisStats("model analysis", duration,
                     enhancementPrompt.length(), aiResponse.length(),
-                    extraLines.length() > 0 ? extraLines.toString() : null);
+                    extra.isEmpty() ? null : extra);
             }
             
             monitor.setProgress(100);
@@ -2248,6 +2279,10 @@ public class FunctionRewrite {
         // Strip m_ or g_ prefix if model already added one
         if (name.startsWith("m_") || name.startsWith("g_")) {
             name = name.substring(2);
+        } else if ((name.startsWith("m") || name.startsWith("g"))
+                && name.length() > 1 && Character.isUpperCase(name.charAt(1))) {
+            // Strip bare m/g followed by uppercase (LLM mCamelCase convention)
+            name = name.substring(1);
         }
         if (name.isEmpty()) return name;
         // If it contains underscores, treat as snake_case

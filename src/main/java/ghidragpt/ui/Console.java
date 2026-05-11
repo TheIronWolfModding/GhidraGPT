@@ -281,6 +281,44 @@ public class Console extends JPanel {
     }
     
     /**
+     * Print options list with boolean values colored green (true) or red (false).
+     */
+    public void appendOptions(String[][] options) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                String timestamp = "[" + new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()) + "] ";
+                document.insertString(document.getLength(), timestamp, timestampStyle);
+                document.insertString(document.getLength(), "Options:\n", resultStyle);
+                
+                Style greenStyle = textPane.getStyle("success");
+                Style redStyle = errorStyle;
+                
+                for (String[] opt : options) {
+                    String name = opt[0];
+                    String value = opt[1];
+                    document.insertString(document.getLength(), timestamp, timestampStyle);
+                    document.insertString(document.getLength(), "  " + name + " = ", resultStyle);
+                    if ("true".equals(value)) {
+                        document.insertString(document.getLength(), value, greenStyle);
+                    } else if ("false".equals(value)) {
+                        document.insertString(document.getLength(), value, redStyle);
+                    } else {
+                        document.insertString(document.getLength(), value, greenStyle);
+                    }
+                    document.insertString(document.getLength(), "\n", resultStyle);
+                }
+                document.insertString(document.getLength(), "\n", resultStyle);
+                
+                textPane.setCaretPosition(document.getLength());
+                scrollPane.getVerticalScrollBar().setValue(scrollPane.getVerticalScrollBar().getMaximum());
+            } catch (BadLocationException e) {
+                // Fallback
+                appendMessage(null, "Options: (failed to render)", MessageType.INFO);
+            }
+        });
+    }
+    
+    /**
      * Print standardized analysis start header with visual enhancements
      */
     public void printAnalysisHeader(String operation, String functionName, String provider, String model, int promptLength) {
