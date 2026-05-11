@@ -2537,6 +2537,14 @@ public class FunctionRewrite {
             if (fieldName.equals(name)) {
                 return component;
             }
+            // Also match Ghidra's auto-generated display name (e.g. field_0x4444)
+            // getFieldName() returns null for these, but getDefaultFieldName() matches
+            if (name == null && fieldName.startsWith("field_0x")) {
+                String defaultName = component.getDefaultFieldName();
+                if (fieldName.equals(defaultName)) {
+                    return component;
+                }
+            }
         }
         // Second pass: recurse into nested structs
         for (DataTypeComponent component : struct.getComponents()) {
