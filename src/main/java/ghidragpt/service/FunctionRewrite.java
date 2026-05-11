@@ -785,7 +785,6 @@ public class FunctionRewrite {
         StringBuilder localVars = new StringBuilder();
         StringBuilder tempVars = new StringBuilder();
         StringBuilder stackVars = new StringBuilder();
-        StringBuilder wellNamedVars = new StringBuilder();
         StringBuilder undefinedTypes = new StringBuilder();
         
         for (VariableAnalysis varAnalysis : functionAnalysis.getVariables()) {
@@ -800,17 +799,19 @@ public class FunctionRewrite {
             
             if (varAnalysis.isParameter()) {
                 parameters.append(varDesc).append("\n");
-            } else if (name.matches("^[iufl]Var\\d+$")) {
-                // Decompiler temporaries like iVar1, uVar2, etc.
-                tempVars.append(varDesc).append(" - decompiler temporary\n");
-            } else if (name.matches("^[ui]Stack_\\d+$|^local_\\d+$")) {
-                // Stack variables like uStack_20, local_38, etc.
-                stackVars.append(varDesc).append(" - stack variable\n");
-            } else if (name.matches("^[A-Z][a-zA-Z0-9_]*$") && name.length() > 3) {
-                // Variables that already have reasonable names (like ControlPc, FunctionEntry)
-                wellNamedVars.append(varDesc).append(" - already well-named\n");
-            } else {
+            } else if (isDecompilerGeneratedName(name)) {
+                // Decompiler-generated names that need renaming
+                if (name.matches("^[a-z]{1,3}Var\\d+$") || name.matches("^Var\\d+$")) {
+                    tempVars.append(varDesc).append(" - decompiler temporary\n");
+                } else {
+                    stackVars.append(varDesc).append(" - stack variable\n");
+                }
+            } else if (configManager != null && configManager.isRenameNamedLocals()) {
+                // Re-rename mode: present user-named locals for renaming too
                 localVars.append(varDesc).append("\n");
+            } else {
+                // User-renamed or well-named -- already visible in decompiled code, skip
+                continue;
             }
             
             // Track variables with unclear types
@@ -824,16 +825,13 @@ public class FunctionRewrite {
             prompt.append("Parameters:\n").append(parameters).append("\n");
         }
         if (localVars.length() > 0) {
-            prompt.append("Local Variables:\n").append(localVars).append("\n");
+            prompt.append("Local Variables (may need better names):\n").append(localVars).append("\n");
         }
         if (tempVars.length() > 0) {
             prompt.append("Decompiler Temporaries (need meaningful names):\n").append(tempVars).append("\n");
         }
         if (stackVars.length() > 0) {
             prompt.append("Stack Variables (may need renaming):\n").append(stackVars).append("\n");
-        }
-        if (wellNamedVars.length() > 0) {
-            prompt.append("Well-Named Variables (consider keeping):\n").append(wellNamedVars).append("\n");
         }
         if (undefinedTypes.length() > 0) {
             prompt.append("Variables with unclear types (suggest better types):\n").append(undefinedTypes).append("\n");
@@ -853,6 +851,18 @@ public class FunctionRewrite {
         
         // Extract and add struct member field references from the decompiled code
         Map<String, String> memberFields = extractMemberFieldReferences(decompiledCode);
+        // When re-rename fields is enabled, also include m_* fields
+        if (configManager != null && configManager.isRenameNamedFields()) {
+            Pattern mFieldPattern = Pattern.compile("(\\w+)\\s*(?:->|\\.)((m_)\\w+)");
+            Matcher mFieldMatcher = mFieldPattern.matcher(decompiledCode);
+            while (mFieldMatcher.find()) {
+                String accessor = mFieldMatcher.group(1);
+                String fieldName = mFieldMatcher.group(2);
+                if (!memberFields.containsKey(fieldName)) {
+                    memberFields.put(fieldName, accessor + "->" + fieldName);
+                }
+            }
+        }
         if (!memberFields.isEmpty()) {
             StringBuilder memberSection = new StringBuilder();
             for (Map.Entry<String, String> entry : memberFields.entrySet()) {
@@ -864,6 +874,17 @@ public class FunctionRewrite {
         }
         
         Map<String, String> functionCalls = extractFunctionCallReferences(decompiledCode);
+        // When re-rename functions is enabled, also include already-renamed F_*/M_*/MV_* calls
+        if (configManager != null && configManager.isRenameNamedFunctions()) {
+            Pattern renamedFuncPattern = Pattern.compile("\\b([FM]V?_\\w+)\\s*\\(");
+            Matcher renamedFuncMatcher = renamedFuncPattern.matcher(decompiledCode);
+            while (renamedFuncMatcher.find()) {
+                String func = renamedFuncMatcher.group(1);
+                if (!functionCalls.containsKey(func)) {
+                    functionCalls.put(func, func + "(...)");
+                }
+            }
+        }
         if (!functionCalls.isEmpty()) {
             StringBuilder funcSection = new StringBuilder();
             for (Map.Entry<String, String> entry : functionCalls.entrySet()) {
@@ -874,6 +895,10 @@ public class FunctionRewrite {
         }
         
         Set<String> classRefs = extractClassReferences(decompiledCode);
+        // When re-rename classes is NOT enabled, filter out already-named C_* classes
+        if (configManager == null || !configManager.isRenameNamedClasses()) {
+            classRefs.removeIf(cls -> cls.startsWith("C_"));
+        }
         if (!classRefs.isEmpty()) {
             StringBuilder classSection = new StringBuilder();
             for (String cls : classRefs) {
@@ -884,7 +909,7 @@ public class FunctionRewrite {
         }
         
         prompt.append("Analysis Instructions:\n");
-        prompt.append("- Focus on renaming generic names (param_1, local_38, uStack_20, DAT_*, FUN_*, field_0x*, mbr_*, cls_0x*) to descriptive names based on usage context\n");
+        prompt.append("- Focus on renaming generic/auto-generated names to descriptive names based on usage context\n");
         prompt.append("- Only include variables/fields where you can determine a meaningful semantic name from the code context\n");
         prompt.append("- OMIT variables you cannot meaningfully name -- do NOT use generic names like temp1, tempDouble2, varN, etc.\n");
         prompt.append("- Suggest a proper function prototype if the current one seems incorrect\n\n");
@@ -1357,7 +1382,9 @@ public class FunctionRewrite {
                     continue;
                 }
                 // Skip if old name already has m_ prefix (user convention)
-                if (oldName.startsWith("m_")) {
+                // unless re-rename fields is enabled
+                if (oldName.startsWith("m_")
+                        && (configManager == null || !configManager.isRenameNamedFields())) {
                     result.suggestionOutcomes.add(new SuggestionOutcome(
                         "Field Rename", oldName + " \u2192 " + newName, false, "Already has m_ prefix"));
                     continue;
@@ -1583,8 +1610,10 @@ public class FunctionRewrite {
                 }
                 
                 // Guard: skip if already user-named (F_, M_, MV_ prefix)
+                // unless re-rename functions is enabled
                 String currentName = targetFunc.getName();
-                if (currentName.startsWith("F_") || currentName.startsWith("M_") || currentName.startsWith("MV_")) {
+                if ((currentName.startsWith("F_") || currentName.startsWith("M_") || currentName.startsWith("MV_"))
+                        && (configManager == null || !configManager.isRenameNamedFunctions())) {
                     result.suggestionOutcomes.add(new SuggestionOutcome(
                         "Function Call Rename", oldName + " -> " + newName, false, "Already user-renamed"));
                     continue;
@@ -1613,8 +1642,13 @@ public class FunctionRewrite {
                 String oldClassName = entry.getKey();
                 String newClassName = entry.getValue();
                 
-                // Only rename auto-generated cls_0x* classes
-                if (!oldClassName.startsWith("cls_0x")) continue;
+                // Only rename auto-generated cls_0x* classes,
+                // or already-named C_* classes if re-rename is enabled
+                boolean isAutoGenerated = oldClassName.startsWith("cls_0x");
+                boolean isAlreadyNamed = oldClassName.startsWith("C_");
+                if (!isAutoGenerated && !(isAlreadyNamed && configManager != null && configManager.isRenameNamedClasses())) {
+                    continue;
+                }
                 if (oldClassName.equals(newClassName)) continue;
                 
                 // Normalize: ensure C_ prefix
@@ -1984,7 +2018,15 @@ public class FunctionRewrite {
                 }
                 
                 if (oldName.equals(newName)) {
-                    results.add(new RenameResult(oldName, newName, true, null));
+                    results.add(new RenameResult(oldName, newName, false, "Already has this name"));
+                    continue;
+                }
+                
+                // Skip variables that already have user-assigned descriptive names
+                // unless re-rename locals is enabled
+                if (!isDecompilerGeneratedName(oldName)
+                        && (configManager == null || !configManager.isRenameNamedLocals())) {
+                    results.add(new RenameResult(oldName, newName, false, "Already user-renamed"));
                     continue;
                 }
                 
@@ -2172,6 +2214,21 @@ public class FunctionRewrite {
 
     private boolean isMemberFieldName(String name) {
         return name.startsWith("mbr_") || name.startsWith("field") || name.startsWith("m_");
+    }
+    
+    /**
+     * Returns true if the name is a Ghidra decompiler auto-generated name
+     * (safe to overwrite). User-assigned descriptive names return false.
+     */
+    private boolean isDecompilerGeneratedName(String name) {
+        if (name.matches("param_\\d+")) return true;
+        if (name.matches("local_[0-9a-fA-F]+")) return true;
+        if (name.matches("[a-zA-Z]{0,3}Stack_[0-9a-fA-F]+")) return true;
+        if (name.matches("[a-z]{1,3}Var\\d+")) return true;
+        if (name.matches("Var\\d+")) return true;
+        if (name.startsWith("in_")) return true;
+        if (name.startsWith("extraout_") || name.startsWith("unaff_")) return true;
+        return false;
     }
     
     /**

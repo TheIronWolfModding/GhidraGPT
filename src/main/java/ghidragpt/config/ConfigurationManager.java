@@ -35,6 +35,10 @@ public class ConfigurationManager {
     private static final String PROCESSING_TIMEOUT_PROPERTY = "api.processing.timeout.minutes";
     private static final String MAX_RESPONSE_SIZE_PROPERTY = "api.max.response.size.kb";
     private static final String REPETITION_THRESHOLD_PROPERTY = "api.repetition.threshold";
+    private static final String RENAME_NAMED_LOCALS_PROPERTY = "rewrite.rename.named.locals";
+    private static final String RENAME_NAMED_FIELDS_PROPERTY = "rewrite.rename.named.fields";
+    private static final String RENAME_NAMED_FUNCTIONS_PROPERTY = "rewrite.rename.named.functions";
+    private static final String RENAME_NAMED_CLASSES_PROPERTY = "rewrite.rename.named.classes";
     
     // XOR key for API key obfuscation, not super secure but still better than plaintext
     private static final String XOR_KEY = "GhidraGPT_Sec3@Key_9f4e7a2b#8c1d6f0a@2025!";
@@ -360,6 +364,38 @@ public class ConfigurationManager {
 
     public void setRepetitionThreshold(int threshold) {
         properties.setProperty(REPETITION_THRESHOLD_PROPERTY, String.valueOf(threshold));
+    }
+
+    public boolean isRenameNamedLocals() {
+        return Boolean.parseBoolean(properties.getProperty(RENAME_NAMED_LOCALS_PROPERTY, "false"));
+    }
+
+    public void setRenameNamedLocals(boolean rename) {
+        properties.setProperty(RENAME_NAMED_LOCALS_PROPERTY, String.valueOf(rename));
+    }
+
+    public boolean isRenameNamedFields() {
+        return Boolean.parseBoolean(properties.getProperty(RENAME_NAMED_FIELDS_PROPERTY, "false"));
+    }
+
+    public void setRenameNamedFields(boolean rename) {
+        properties.setProperty(RENAME_NAMED_FIELDS_PROPERTY, String.valueOf(rename));
+    }
+
+    public boolean isRenameNamedFunctions() {
+        return Boolean.parseBoolean(properties.getProperty(RENAME_NAMED_FUNCTIONS_PROPERTY, "false"));
+    }
+
+    public void setRenameNamedFunctions(boolean rename) {
+        properties.setProperty(RENAME_NAMED_FUNCTIONS_PROPERTY, String.valueOf(rename));
+    }
+
+    public boolean isRenameNamedClasses() {
+        return Boolean.parseBoolean(properties.getProperty(RENAME_NAMED_CLASSES_PROPERTY, "false"));
+    }
+
+    public void setRenameNamedClasses(boolean rename) {
+        properties.setProperty(RENAME_NAMED_CLASSES_PROPERTY, String.valueOf(rename));
     }
     
     /**

@@ -34,6 +34,10 @@ public class ConfigurationPanel extends JPanel {
     private final JCheckBox applyFunctionRenameCheckbox;
     private final JCheckBox applyFunctionPrototypeCheckbox;
     private final JCheckBox printRewriteSummaryCheckbox;
+    private final JCheckBox renameNamedLocalsCheckbox;
+    private final JCheckBox renameNamedFieldsCheckbox;
+    private final JCheckBox renameNamedFunctionsCheckbox;
+    private final JCheckBox renameNamedClassesCheckbox;
     private final JRadioButton debugOffRadio;
     private final JRadioButton debugSaveRadio;
     private final JRadioButton debugLoadRadio;
@@ -244,32 +248,57 @@ public class ConfigurationPanel extends JPanel {
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(printRewriteSummaryCheckbox, gbc);
 
+        // Re-rename checkboxes (allow re-renaming already-named items)
+        renameNamedLocalsCheckbox = new JCheckBox("Re-rename already named locals");
+        renameNamedLocalsCheckbox.setToolTipText("Allow LLM to rename local variables that already have descriptive names (not decompiler defaults)");
+        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
+        gbc.insets = new Insets(2, 5, 2, 5);
+        formPanel.add(renameNamedLocalsCheckbox, gbc);
+
+        renameNamedFieldsCheckbox = new JCheckBox("Re-rename already named fields");
+        renameNamedFieldsCheckbox.setToolTipText("Allow LLM to rename struct fields that already have m_ prefixed names");
+        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
+        gbc.insets = new Insets(2, 5, 2, 5);
+        formPanel.add(renameNamedFieldsCheckbox, gbc);
+
+        renameNamedFunctionsCheckbox = new JCheckBox("Re-rename already named functions");
+        renameNamedFunctionsCheckbox.setToolTipText("Allow LLM to rename function calls that already have F_/M_ prefixed names");
+        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 2;
+        gbc.insets = new Insets(2, 5, 2, 5);
+        formPanel.add(renameNamedFunctionsCheckbox, gbc);
+
+        renameNamedClassesCheckbox = new JCheckBox("Re-rename already named classes");
+        renameNamedClassesCheckbox.setToolTipText("Allow LLM to rename classes that already have C_ prefixed names (not cls_0x defaults)");
+        gbc.gridx = 0; gbc.gridy = 18; gbc.gridwidth = 2;
+        gbc.insets = new Insets(2, 5, 2, 5);
+        formPanel.add(renameNamedClassesCheckbox, gbc);
+
         // Enable Thinking checkbox (Ollama only)
         enableThinkingCheckbox = new JCheckBox("Enable thinking (Ollama)");
         enableThinkingCheckbox.setToolTipText("Allow model to reason before answering (uses more output tokens)");
-        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 19; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(enableThinkingCheckbox, gbc);
 
         // Thinking threshold spinner
         thinkingThresholdLabel = new JLabel("Min thinking prompt (KB):");
-        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 1;
+        gbc.gridx = 0; gbc.gridy = 20; gbc.gridwidth = 1;
         gbc.insets = new Insets(2, 20, 2, 5);
         formPanel.add(thinkingThresholdLabel, gbc);
         thinkingThresholdSpinner = new JSpinner(new SpinnerNumberModel(10, 0, 1000, 1));
         thinkingThresholdSpinner.setToolTipText("Thinking is only sent when prompt size exceeds this threshold (0 = always think)");
-        gbc.gridx = 1; gbc.gridy = 16;
+        gbc.gridx = 1; gbc.gridy = 20;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(thinkingThresholdSpinner, gbc);
 
         // Thinking timeout spinner
         thinkingTimeoutLabel = new JLabel("Thinking timeout (min):");
-        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 1;
+        gbc.gridx = 0; gbc.gridy = 21; gbc.gridwidth = 1;
         gbc.insets = new Insets(2, 20, 5, 5);
         formPanel.add(thinkingTimeoutLabel, gbc);
         processingTimeoutSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_PROCESSING_TIMEOUT_MINUTES, 0, 120, 1));
         processingTimeoutSpinner.setToolTipText("Max time for model thinking phase in minutes (0 = no limit). Content generation is not affected.");
-        gbc.gridx = 1; gbc.gridy = 17;
+        gbc.gridx = 1; gbc.gridy = 21;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(processingTimeoutSpinner, gbc);
         enableThinkingCheckbox.addActionListener(e -> updateThinkingThresholdState());
@@ -308,12 +337,12 @@ public class ConfigurationPanel extends JPanel {
         debugPanel.add(debugPathField);
         debugPanel.add(new JLabel("File:"));
         debugPanel.add(debugFileField);
-        gbc.gridx = 0; gbc.gridy = 18; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 22; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(debugPanel, gbc);
         
         // Custom Prompt Instructions
-        gbc.gridx = 0; gbc.gridy = 19; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 23; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
         formPanel.add(new JLabel("Custom Prompt Instructions:"), gbc);
         
@@ -323,7 +352,7 @@ public class ConfigurationPanel extends JPanel {
         customInstructionsArea.setToolTipText("Extra instructions appended to the LLM prompt (e.g. 'Always use camelCase names')");
         JScrollPane instructionsScrollPane = new JScrollPane(customInstructionsArea);
         instructionsScrollPane.setPreferredSize(new Dimension(300, 60));
-        gbc.gridx = 0; gbc.gridy = 20; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 24; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(instructionsScrollPane, gbc);
@@ -331,7 +360,7 @@ public class ConfigurationPanel extends JPanel {
         // Vertical spacer to push everything to the top
         JPanel spacer = new JPanel();
         spacer.setOpaque(false);
-        gbc.gridx = 0; gbc.gridy = 21; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 25; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.weighty = 1.0;
         gbc.weightx = 1.0;
@@ -386,6 +415,10 @@ public class ConfigurationPanel extends JPanel {
         applyFunctionRenameCheckbox.addActionListener(e -> markDirty.run());
         applyFunctionPrototypeCheckbox.addActionListener(e -> markDirty.run());
         printRewriteSummaryCheckbox.addActionListener(e -> markDirty.run());
+        renameNamedLocalsCheckbox.addActionListener(e -> markDirty.run());
+        renameNamedFieldsCheckbox.addActionListener(e -> markDirty.run());
+        renameNamedFunctionsCheckbox.addActionListener(e -> markDirty.run());
+        renameNamedClassesCheckbox.addActionListener(e -> markDirty.run());
         enableThinkingCheckbox.addActionListener(e -> markDirty.run());
         thinkingThresholdSpinner.addChangeListener(e -> markDirty.run());
         debugOffRadio.addActionListener(e -> markDirty.run());
@@ -419,6 +452,10 @@ public class ConfigurationPanel extends JPanel {
         applyFunctionRenameCheckbox.setSelected(configManager.isApplyFunctionRename());
         applyFunctionPrototypeCheckbox.setSelected(configManager.isApplyFunctionPrototype());
         printRewriteSummaryCheckbox.setSelected(configManager.isPrintRewriteSummary());
+        renameNamedLocalsCheckbox.setSelected(configManager.isRenameNamedLocals());
+        renameNamedFieldsCheckbox.setSelected(configManager.isRenameNamedFields());
+        renameNamedFunctionsCheckbox.setSelected(configManager.isRenameNamedFunctions());
+        renameNamedClassesCheckbox.setSelected(configManager.isRenameNamedClasses());
         enableThinkingCheckbox.setSelected(configManager.isEnableThinking());
         thinkingThresholdSpinner.setValue(configManager.getThinkingThresholdKb());
         updateThinkingThresholdState();
@@ -554,6 +591,10 @@ public class ConfigurationPanel extends JPanel {
         configManager.setApplyFunctionRename(applyFunctionRenameCheckbox.isSelected());
         configManager.setApplyFunctionPrototype(applyFunctionPrototypeCheckbox.isSelected());
         configManager.setPrintRewriteSummary(printRewriteSummaryCheckbox.isSelected());
+        configManager.setRenameNamedLocals(renameNamedLocalsCheckbox.isSelected());
+        configManager.setRenameNamedFields(renameNamedFieldsCheckbox.isSelected());
+        configManager.setRenameNamedFunctions(renameNamedFunctionsCheckbox.isSelected());
+        configManager.setRenameNamedClasses(renameNamedClassesCheckbox.isSelected());
         configManager.setEnableThinking(enableThinkingCheckbox.isSelected());
         configManager.setThinkingThresholdKb((Integer) thinkingThresholdSpinner.getValue());
         configManager.setDebugMode(debugSaveRadio.isSelected() ? "save" : debugLoadRadio.isSelected() ? "load" : "off");
