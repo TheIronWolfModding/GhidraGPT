@@ -49,7 +49,6 @@ public class ConfigurationPanel extends JPanel {
     private final JLabel thinkingThresholdLabel;
     private final JLabel thinkingTimeoutLabel;
     private final JSpinner maxResponseSizeSpinner;
-    private final JSpinner repetitionThresholdSpinner;
     private final JPanel toolbar;
     
     public ConfigurationPanel(APIClient apiClient) {
@@ -204,17 +203,6 @@ public class ConfigurationPanel extends JPanel {
         gbc.gridx = 1; gbc.gridy = 8;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(maxResponseSizeSpinner, gbc);
-
-        // Repetition threshold
-        gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 1;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.insets = new Insets(2, 5, 5, 5);
-        formPanel.add(new JLabel("Repetition threshold:"), gbc);
-        repetitionThresholdSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_REPETITION_THRESHOLD, 0, 200, 5));
-        repetitionThresholdSpinner.setToolTipText("Cancel generation after N consecutive similar lines (0 = disabled)");
-        gbc.gridx = 1; gbc.gridy = 9;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        formPanel.add(repetitionThresholdSpinner, gbc);
 
         // Rewrite Options separator
         gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 2;
@@ -411,7 +399,6 @@ public class ConfigurationPanel extends JPanel {
         timeoutSpinner.addChangeListener(e -> markDirty.run());
         processingTimeoutSpinner.addChangeListener(e -> markDirty.run());
         maxResponseSizeSpinner.addChangeListener(e -> markDirty.run());
-        repetitionThresholdSpinner.addChangeListener(e -> markDirty.run());
         applyFunctionRenameCheckbox.addActionListener(e -> markDirty.run());
         applyFunctionPrototypeCheckbox.addActionListener(e -> markDirty.run());
         printRewriteSummaryCheckbox.addActionListener(e -> markDirty.run());
@@ -448,7 +435,6 @@ public class ConfigurationPanel extends JPanel {
         timeoutSpinner.setValue(configManager.getTimeoutSeconds());
         processingTimeoutSpinner.setValue(configManager.getProcessingTimeoutMinutes());
         maxResponseSizeSpinner.setValue(configManager.getMaxResponseSizeKb());
-        repetitionThresholdSpinner.setValue(configManager.getRepetitionThreshold());
         applyFunctionRenameCheckbox.setSelected(configManager.isApplyFunctionRename());
         applyFunctionPrototypeCheckbox.setSelected(configManager.isApplyFunctionPrototype());
         printRewriteSummaryCheckbox.setSelected(configManager.isPrintRewriteSummary());
@@ -587,7 +573,6 @@ public class ConfigurationPanel extends JPanel {
         configManager.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
         configManager.setProcessingTimeoutMinutes((Integer) processingTimeoutSpinner.getValue());
         configManager.setMaxResponseSizeKb((Integer) maxResponseSizeSpinner.getValue());
-        configManager.setRepetitionThreshold((Integer) repetitionThresholdSpinner.getValue());
         configManager.setApplyFunctionRename(applyFunctionRenameCheckbox.isSelected());
         configManager.setApplyFunctionPrototype(applyFunctionPrototypeCheckbox.isSelected());
         configManager.setPrintRewriteSummary(printRewriteSummaryCheckbox.isSelected());
@@ -614,7 +599,6 @@ public class ConfigurationPanel extends JPanel {
         apiClient.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
         apiClient.setProcessingTimeoutMinutes((Integer) processingTimeoutSpinner.getValue());
         apiClient.setMaxResponseSizeKb((Integer) maxResponseSizeSpinner.getValue());
-        apiClient.setRepetitionThreshold((Integer) repetitionThresholdSpinner.getValue());
         apiClient.setEnableThinking(enableThinkingCheckbox.isSelected());
         
         configDirty = false;

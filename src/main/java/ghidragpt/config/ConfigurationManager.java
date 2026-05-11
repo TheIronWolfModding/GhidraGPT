@@ -34,7 +34,6 @@ public class ConfigurationManager {
     private static final String THINKING_THRESHOLD_PROPERTY = "api.thinking.threshold.kb";
     private static final String PROCESSING_TIMEOUT_PROPERTY = "api.processing.timeout.minutes";
     private static final String MAX_RESPONSE_SIZE_PROPERTY = "api.max.response.size.kb";
-    private static final String REPETITION_THRESHOLD_PROPERTY = "api.repetition.threshold";
     private static final String RENAME_NAMED_LOCALS_PROPERTY = "rewrite.rename.named.locals";
     private static final String RENAME_NAMED_FIELDS_PROPERTY = "rewrite.rename.named.fields";
     private static final String RENAME_NAMED_FUNCTIONS_PROPERTY = "rewrite.rename.named.functions";
@@ -356,14 +355,6 @@ public class ConfigurationManager {
 
     public void setMaxResponseSizeKb(int kb) {
         properties.setProperty(MAX_RESPONSE_SIZE_PROPERTY, String.valueOf(kb));
-    }
-
-    public int getRepetitionThreshold() {
-        return Integer.parseInt(properties.getProperty(REPETITION_THRESHOLD_PROPERTY, "20"));
-    }
-
-    public void setRepetitionThreshold(int threshold) {
-        properties.setProperty(REPETITION_THRESHOLD_PROPERTY, String.valueOf(threshold));
     }
 
     public boolean isRenameNamedLocals() {
