@@ -5,6 +5,8 @@ import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -80,6 +82,30 @@ public class Console extends JPanel {
         add(toolbarPanel, BorderLayout.NORTH);
         add(scrollPane, BorderLayout.CENTER);
         
+        // Keyboard shortcuts via KeyListener (bypasses Ghidra's docking framework)
+        textPane.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.isControlDown()) {
+                    switch (e.getKeyCode()) {
+                        case KeyEvent.VK_X:
+                            clearConsole();
+                            e.consume();
+                            break;
+                        case KeyEvent.VK_C:
+                            copyToClipboard();
+                            e.consume();
+                            break;
+                        case KeyEvent.VK_PAUSE:
+                        case KeyEvent.VK_CANCEL:
+                            cancelOperation();
+                            e.consume();
+                            break;
+                    }
+                }
+            }
+        });
+
         // Welcome message with style
         appendMessage("🚀 GhidraGPT", "Console initialized. LLM analysis results will appear here.", MessageType.HEADER);
     }
@@ -162,16 +188,16 @@ public class Console extends JPanel {
         toolbar.setBorder(BorderFactory.createEmptyBorder(2, 10, 2, 10));
         
         // Style buttons with modern flat design
-        JButton clearButton = createStyledButton("🗑️ Clear", new Color(255, 92, 87));
-        clearButton.setPreferredSize(new Dimension(85, 24));
+        JButton clearButton = createStyledButton("Clear (Ctrl+X)", new Color(255, 92, 87));
+        clearButton.setPreferredSize(new Dimension(110, 24));
         clearButton.addActionListener(e -> clearConsole());
         
-        JButton copyButton = createStyledButton("📋 Copy", new Color(102, 217, 239));
-        copyButton.setPreferredSize(new Dimension(85, 24));
+        JButton copyButton = createStyledButton("Copy (Ctrl+C)", new Color(102, 217, 239));
+        copyButton.setPreferredSize(new Dimension(110, 24));
         copyButton.addActionListener(e -> copyToClipboard());
         
-        cancelButton = createStyledButton("⛔ Cancel", new Color(229, 192, 123));
-        cancelButton.setPreferredSize(new Dimension(95, 24));
+        cancelButton = createStyledButton("Cancel (Ctrl+Pause)", new Color(229, 192, 123));
+        cancelButton.setPreferredSize(new Dimension(145, 24));
         cancelButton.setEnabled(false);
         cancelButton.addActionListener(e -> cancelOperation());
         
@@ -582,12 +608,12 @@ public class Console extends JPanel {
         });
     }
 
-    private void clearConsole() {
+    void clearConsole() {
         textPane.setText("");
         appendMessage("🧹 System", "Console cleared.", MessageType.SUCCESS);
     }
     
-    private void cancelOperation() {
+    void cancelOperation() {
         TaskMonitor monitor = activeMonitor;
         Thread thread = activeThread;
         if (monitor != null) {
@@ -618,7 +644,7 @@ public class Console extends JPanel {
         SwingUtilities.invokeLater(() -> cancelButton.setEnabled(false));
     }
     
-    private void copyToClipboard() {
+    void copyToClipboard() {
         textPane.selectAll();
         textPane.copy();
         textPane.setCaretPosition(document.getLength());

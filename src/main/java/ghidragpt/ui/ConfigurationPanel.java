@@ -69,10 +69,10 @@ public class ConfigurationPanel extends JPanel {
         testButton.setPreferredSize(new Dimension(130, 28));
         toolbar.add(testButton);
         
-        saveButton = new JButton("Save");
+        saveButton = new JButton("Save (Ctrl+S)");
         saveButton.setToolTipText("Save configuration to disk");
         saveButton.addActionListener(e -> saveConfiguration());
-        saveButton.setPreferredSize(new Dimension(80, 28));
+        saveButton.setPreferredSize(new Dimension(120, 28));
         saveButton.setEnabled(false);
         toolbar.add(saveButton);
         
