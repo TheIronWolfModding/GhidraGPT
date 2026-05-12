@@ -53,6 +53,7 @@ public class APIClient {
     private int processingTimeoutMinutes = DEFAULT_PROCESSING_TIMEOUT_MINUTES;
     private int maxResponseSizeKb = DEFAULT_MAX_RESPONSE_SIZE_KB;
     private boolean enableThinking = false;
+    private String systemPrompt = "You are an expert in reverse engineering decompiled C/C++ code from Ghidra.";
     
     // Last Ollama request stats
     private volatile OllamaRequestStats lastOllamaStats;
@@ -128,6 +129,14 @@ public class APIClient {
 
     public boolean isEnableThinking() {
         return enableThinking;
+    }
+
+    public void setSystemPrompt(String systemPrompt) {
+        this.systemPrompt = systemPrompt;
+    }
+
+    public String getSystemPrompt() {
+        return systemPrompt;
     }
     
     public void setTimeoutSeconds(int timeoutSeconds) {
@@ -698,7 +707,7 @@ public class APIClient {
         OllamaRequest request = new OllamaRequest();
         request.model = model.isEmpty() ? "llama3.2" : model;
         request.messages = List.of(
-            new OllamaMessage("system", "You are an expert in reverse engineering decompiled C/C++ code from Ghidra."),
+            new OllamaMessage("system", systemPrompt),
             new OllamaMessage("user", prompt)
         );
         request.stream = true;

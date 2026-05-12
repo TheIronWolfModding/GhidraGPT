@@ -26,6 +26,8 @@ public class ConfigurationManager {
     private static final String APPLY_FUNCTION_RENAME_PROPERTY = "rewrite.apply.function.rename";
     private static final String APPLY_FUNCTION_PROTOTYPE_PROPERTY = "rewrite.apply.function.prototype";
     private static final String CUSTOM_INSTRUCTIONS_PROPERTY = "rewrite.custom.instructions";
+    private static final String SYSTEM_PROMPT_PROPERTY = "api.system.prompt";
+    private static final String DEFAULT_SYSTEM_PROMPT = "You are an expert in reverse engineering decompiled C/C++ code from Ghidra.";
     private static final String PRINT_REWRITE_SUMMARY_PROPERTY = "rewrite.print.summary";
     private static final String DEBUG_MODE_PROPERTY = "rewrite.debug.mode";
     private static final String DEBUG_PATH_PROPERTY = "rewrite.debug.path";
@@ -323,6 +325,14 @@ public class ConfigurationManager {
     
     public void setCustomInstructions(String instructions) {
         properties.setProperty(CUSTOM_INSTRUCTIONS_PROPERTY, instructions != null ? instructions : "");
+    }
+
+    public String getSystemPrompt() {
+        return properties.getProperty(SYSTEM_PROMPT_PROPERTY, DEFAULT_SYSTEM_PROMPT);
+    }
+
+    public void setSystemPrompt(String prompt) {
+        properties.setProperty(SYSTEM_PROMPT_PROPERTY, prompt != null ? prompt : DEFAULT_SYSTEM_PROMPT);
     }
 
     public boolean isEnableThinking() {

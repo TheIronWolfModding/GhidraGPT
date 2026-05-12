@@ -43,6 +43,7 @@ public class ConfigurationPanel extends JPanel {
     private final JRadioButton debugLoadRadio;
     private final JTextField debugPathField;
     private final JTextField debugFileField;
+    private final JTextArea systemPromptArea;
     private final JTextArea customInstructionsArea;
     private final JCheckBox enableThinkingCheckbox;
     private final JSpinner thinkingThresholdSpinner;
@@ -329,8 +330,24 @@ public class ConfigurationPanel extends JPanel {
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(debugPanel, gbc);
         
-        // Custom Prompt Instructions
+        // System Prompt
         gbc.gridx = 0; gbc.gridy = 23; gbc.gridwidth = 2;
+        gbc.insets = new Insets(5, 5, 2, 5);
+        formPanel.add(new JLabel("System Prompt:"), gbc);
+        
+        systemPromptArea = new JTextArea(2, 30);
+        systemPromptArea.setLineWrap(true);
+        systemPromptArea.setWrapStyleWord(true);
+        systemPromptArea.setToolTipText("System prompt sent to the LLM (role: system)");
+        JScrollPane systemPromptScrollPane = new JScrollPane(systemPromptArea);
+        systemPromptScrollPane.setPreferredSize(new Dimension(300, 45));
+        gbc.gridx = 0; gbc.gridy = 24; gbc.gridwidth = 2;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(2, 5, 5, 5);
+        formPanel.add(systemPromptScrollPane, gbc);
+
+        // Custom Prompt Instructions
+        gbc.gridx = 0; gbc.gridy = 25; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
         formPanel.add(new JLabel("Custom Prompt Instructions:"), gbc);
         
@@ -340,7 +357,7 @@ public class ConfigurationPanel extends JPanel {
         customInstructionsArea.setToolTipText("Extra instructions appended to the LLM prompt (e.g. 'Always use camelCase names')");
         JScrollPane instructionsScrollPane = new JScrollPane(customInstructionsArea);
         instructionsScrollPane.setPreferredSize(new Dimension(300, 60));
-        gbc.gridx = 0; gbc.gridy = 24; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 26; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(instructionsScrollPane, gbc);
@@ -348,7 +365,7 @@ public class ConfigurationPanel extends JPanel {
         // Vertical spacer to push everything to the top
         JPanel spacer = new JPanel();
         spacer.setOpaque(false);
-        gbc.gridx = 0; gbc.gridy = 25; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 27; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.weighty = 1.0;
         gbc.weightx = 1.0;
@@ -390,6 +407,11 @@ public class ConfigurationPanel extends JPanel {
             public void changedUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
         });
         customInstructionsArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
+        });
+        systemPromptArea.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
             public void insertUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
             public void removeUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
             public void changedUpdate(javax.swing.event.DocumentEvent e) { markDirty.run(); }
@@ -453,6 +475,7 @@ public class ConfigurationPanel extends JPanel {
         debugPathField.setEnabled(!"off".equals(debugMode));
         debugFileField.setText(configManager.getDebugFile());
         debugFileField.setEnabled("load".equals(debugMode));
+        systemPromptArea.setText(configManager.getSystemPrompt());
         customInstructionsArea.setText(configManager.getCustomInstructions());
         
         // Update visibility of custom URL field
@@ -477,6 +500,7 @@ public class ConfigurationPanel extends JPanel {
             apiClient.setTimeoutSeconds(configManager.getTimeoutSeconds());
             apiClient.setProcessingTimeoutMinutes(configManager.getProcessingTimeoutMinutes());
             apiClient.setEnableThinking(configManager.isEnableThinking());
+            apiClient.setSystemPrompt(configManager.getSystemPrompt());
         } else {
             statusLabel.setText("Configuration incomplete");
             statusLabel.setForeground(Color.ORANGE);
@@ -585,6 +609,7 @@ public class ConfigurationPanel extends JPanel {
         configManager.setDebugMode(debugSaveRadio.isSelected() ? "save" : debugLoadRadio.isSelected() ? "load" : "off");
         configManager.setDebugPath(debugPathField.getText().trim());
         configManager.setDebugFile(debugFileField.getText().trim());
+        configManager.setSystemPrompt(systemPromptArea.getText());
         configManager.setCustomInstructions(customInstructionsArea.getText());
         configManager.saveConfiguration();
         
@@ -600,6 +625,7 @@ public class ConfigurationPanel extends JPanel {
         apiClient.setProcessingTimeoutMinutes((Integer) processingTimeoutSpinner.getValue());
         apiClient.setMaxResponseSizeKb((Integer) maxResponseSizeSpinner.getValue());
         apiClient.setEnableThinking(enableThinkingCheckbox.isSelected());
+        apiClient.setSystemPrompt(systemPromptArea.getText());
         
         configDirty = false;
         saveButton.setEnabled(false);
