@@ -817,9 +817,13 @@ public class FunctionRewrite {
         StringBuilder tempVars = new StringBuilder();
         StringBuilder stackVars = new StringBuilder();
         StringBuilder undefinedTypes = new StringBuilder();
+        java.util.Set<String> seenVarNames = new java.util.HashSet<>();
         
         for (VariableAnalysis varAnalysis : functionAnalysis.getVariables()) {
             String name = varAnalysis.getName();
+            
+            // Deduplicate variables (Ghidra can report the same variable twice)
+            if (!seenVarNames.add(name)) continue;
             
             // Skip Windows SEH frame variables -- not real function logic
             if (name.equals("unaff_FS_OFFSET") || name.startsWith("puStack_") && varAnalysis.getTypeDisplayName().contains("undefined1")) {
@@ -872,12 +876,15 @@ public class FunctionRewrite {
         if (globalRefs != null && !globalRefs.isEmpty()) {
             StringBuilder globalsSection = new StringBuilder();
             for (GlobalVarInfo global : globalRefs) {
+                if (!isDefaultGlobalName(global.name)) continue;
                 globalsSection.append("- ").append(global.name)
                     .append(" @ ").append(global.address)
                     .append(" (").append(global.type).append(")\n");
             }
-            prompt.append("Referenced Global Variables (DAT_*, cls_*, etc.):\n")
-                  .append(globalsSection).append("\n");
+            if (globalsSection.length() > 0) {
+                prompt.append("Referenced Global Variables (DAT_*, cls_*, etc.):\n")
+                      .append(globalsSection).append("\n");
+            }
         }
         
         // Extract and add struct member field references from the decompiled code
@@ -2264,11 +2271,14 @@ public class FunctionRewrite {
     private boolean isDecompilerGeneratedName(String name) {
         if (name.matches("param_\\d+")) return true;
         if (name.matches("local_[0-9a-fA-F]+")) return true;
+        if (name.matches("local_[A-Z]+_\\d+")) return true;
         if (name.matches("[a-zA-Z]{0,3}Stack_[0-9a-fA-F]+")) return true;
         if (name.matches("[a-z]{1,3}Var\\d+")) return true;
         if (name.matches("Var\\d+")) return true;
+        if (name.matches("[a-z]{1,2}[A-Z][A-Za-z]*\\d+")) return true;
         if (name.startsWith("in_")) return true;
         if (name.startsWith("extraout_") || name.startsWith("unaff_")) return true;
+        if (name.startsWith("temp_")) return true;
         return false;
     }
     
