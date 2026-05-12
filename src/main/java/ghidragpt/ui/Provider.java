@@ -14,6 +14,15 @@ import ghidra.framework.plugintool.Plugin;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
+import ghidra.program.model.listing.Variable;
+import ghidra.program.model.symbol.SourceType;
+import ghidra.app.decompiler.DecompInterface;
+import ghidra.app.decompiler.DecompileOptions;
+import ghidra.app.decompiler.DecompileResults;
+import ghidra.program.model.pcode.HighFunction;
+import ghidra.program.model.pcode.HighSymbol;
+import ghidra.program.model.pcode.HighFunctionDBUtil;
+import ghidra.util.task.ConsoleTaskMonitor;
 import ghidra.util.HelpLocation;
 import ghidra.util.Msg;
 import ghidra.util.task.TaskMonitor;
@@ -92,6 +101,7 @@ public class Provider extends ComponentProvider {
         createEnhanceFunctionAction();
         createExplainAction();
         createVulnerabilityAction();
+        createResetLocalNamesAction();
         createShowConfigAction();
         createShowConsoleAction();
         createShowDataTypesAction();
@@ -198,6 +208,25 @@ public class Provider extends ComponentProvider {
         explainAction.setDescription("Get detailed explanation of function behavior");
 
         plugin.getTool().addAction(explainAction);
+    }
+
+    private void createResetLocalNamesAction() {
+        DockingAction resetAction = new DockingAction("Reset Local Names", getName()) {
+            @Override
+            public void actionPerformed(ActionContext context) {
+                resetLocalNamesFromContext(context);
+            }
+
+            @Override
+            public boolean isEnabledForContext(ActionContext context) {
+                return isValidFunctionContext(context);
+            }
+        };
+
+        resetAction.setPopupMenuData(new MenuData(new String[] { "GhidraGPT", "Reset Local Names" }, null, "d"));
+        resetAction.setDescription("Reset all user-renamed local variables and parameters to decompiler defaults");
+
+        plugin.getTool().addAction(resetAction);
     }
 
     private boolean isValidFunctionContext(ActionContext context) {
@@ -370,6 +399,72 @@ public class Provider extends ComponentProvider {
         Program program = getProgramFromContext(context);
         executeAnalysisWithContext("Explaining function...", function, program,
                 (f, p, monitor) -> analysisService.explainFunction(f, p, monitor));
+    }
+
+    private void resetLocalNamesFromContext(ActionContext context) {
+        Function function = getFunctionFromContext(context);
+        Program program = getProgramFromContext(context);
+        if (function == null || program == null) {
+            Msg.showError(this, mainPanel, "Error", "No function selected");
+            return;
+        }
+
+        int txId = program.startTransaction("Reset Locals: " + function.getName());
+        try {
+            int nameCount = 0;
+            int typeCount = 0;
+
+            // Reset names
+            for (Variable var : function.getLocalVariables()) {
+                if (var.getSource() == SourceType.USER_DEFINED) {
+                    var.setName(null, SourceType.DEFAULT);
+                    nameCount++;
+                }
+            }
+            for (var param : function.getParameters()) {
+                if (param.getSource() == SourceType.USER_DEFINED) {
+                    param.setName(null, SourceType.DEFAULT);
+                    nameCount++;
+                }
+            }
+
+            // Reset types via decompiler
+            DecompInterface decomp = new DecompInterface();
+            decomp.setOptions(new DecompileOptions());
+            try {
+                decomp.openProgram(program);
+                DecompileResults results = decomp.decompileFunction(function, 30, new ConsoleTaskMonitor());
+                HighFunction highFunc = results.getHighFunction();
+                if (highFunc != null) {
+                    java.util.Iterator<HighSymbol> symbols = highFunc.getLocalSymbolMap().getSymbols();
+                    while (symbols.hasNext()) {
+                        HighSymbol symbol = symbols.next();
+                        if (symbol.getHighVariable() != null) {
+                            ghidra.program.model.data.DataType inferredType = symbol.getHighVariable().getDataType();
+                            if (inferredType != null) {
+                                try {
+                                    HighFunctionDBUtil.updateDBVariable(symbol, symbol.getName(), inferredType, SourceType.DEFAULT);
+                                    typeCount++;
+                                } catch (Exception e) {
+                                    // Some symbols can't be updated (e.g. compiler temps)
+                                }
+                            }
+                        }
+                    }
+                }
+            } finally {
+                decomp.dispose();
+            }
+
+            if (console != null) {
+                console.appendInfo("Reset " + nameCount + " names, " + typeCount + " types in " + function.getName());
+            }
+        } catch (Exception e) {
+            Msg.error(this, "Failed to reset locals", e);
+            program.endTransaction(txId, false);
+            return;
+        }
+        program.endTransaction(txId, true);
     }
 
     private void executeAnalysis(String taskName, AnalysisTask task) {
