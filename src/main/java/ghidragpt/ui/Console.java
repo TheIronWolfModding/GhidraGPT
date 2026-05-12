@@ -38,6 +38,10 @@ public class Console extends JPanel {
     private JButton cancelButton;
     private volatile TaskMonitor activeMonitor;
     private volatile Thread activeThread;
+
+    public void focusConsole() {
+        textPane.requestFocusInWindow();
+    }
     
     public Console() {
         setLayout(new BorderLayout());

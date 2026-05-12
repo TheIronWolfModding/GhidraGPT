@@ -105,6 +105,7 @@ public class Provider extends ComponentProvider {
         createShowConfigAction();
         createShowConsoleAction();
         createShowDataTypesAction();
+        createSaveConfigAction();
     }
 
     private void createShowConfigAction() {
@@ -122,6 +123,27 @@ public class Provider extends ComponentProvider {
         plugin.getTool().addAction(action);
     }
 
+    private void createSaveConfigAction() {
+        DockingAction action = new DockingAction("Save GhidraGPT Config", getName()) {
+            @Override
+            public void actionPerformed(ActionContext context) {
+                if (isVisible() && tabbedPane.getSelectedIndex() == 0) {
+                    configPanel.saveConfiguration();
+                }
+            }
+
+            @Override
+            public boolean isEnabledForContext(ActionContext context) {
+                return isVisible() && tabbedPane.getSelectedIndex() == 0;
+            }
+        };
+        action.setKeyBindingData(new KeyBindingData(
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S,
+                java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx())));
+        action.setDescription("Save GhidraGPT configuration");
+        plugin.getTool().addAction(action);
+    }
+
     private void createShowConsoleAction() {
         DockingAction action = new DockingAction("GhidraGPT Console", getName()) {
             @Override
@@ -129,6 +151,7 @@ public class Provider extends ComponentProvider {
                 setVisible(true);
                 tabbedPane.setSelectedIndex(1);
                 toFront();
+                console.focusConsole();
             }
         };
         action.setKeyBindingData(new KeyBindingData(

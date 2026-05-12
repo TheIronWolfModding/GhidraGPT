@@ -540,7 +540,7 @@ public class ConfigurationPanel extends JPanel {
         
         // Enable API key field by default
         apiKeyField.setEnabled(true);
-    }    private void saveConfiguration() {
+    }    void saveConfiguration() {
         String apiKey = apiKeyField.getText().trim();
         APIClient.GPTProvider selectedProvider = (APIClient.GPTProvider) providerCombo.getSelectedItem();
         String customApiUrl = customApiUrlField.getText().trim();
