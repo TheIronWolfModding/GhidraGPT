@@ -1643,6 +1643,13 @@ public class FunctionRewrite {
                     continue;
                 }
                 
+                // Never re-rename the function being analyzed
+                if (targetFunc.getEntryPoint().equals(function.getEntryPoint())) {
+                    result.suggestionOutcomes.add(new SuggestionOutcome(
+                        "Function Call Rename", oldName + " -> " + newName, false, "Current function - skipped"));
+                    continue;
+                }
+                
                 // Guard: skip if already user-named (F_, M_, MV_ prefix)
                 // unless re-rename functions is enabled
                 String currentName = targetFunc.getName();

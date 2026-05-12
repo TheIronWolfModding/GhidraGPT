@@ -605,10 +605,6 @@ public class ConfigurationPanel extends JPanel {
         saveButton.setEnabled(false);
         statusLabel.setText("Configuration saved");
         statusLabel.setForeground(Color.BLUE);
-        
-        JOptionPane.showMessageDialog(this, 
-            "Configuration saved successfully!\nSaved to: " + configManager.getConfigurationPath(), 
-            "Success", JOptionPane.INFORMATION_MESSAGE);
     }
     
     private void testConnection() {
