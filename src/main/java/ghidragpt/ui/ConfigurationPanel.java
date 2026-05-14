@@ -156,9 +156,11 @@ public class ConfigurationPanel extends JPanel {
         gbc.gridx = 0; gbc.gridy = 5; gbc.fill = GridBagConstraints.NONE;
         formPanel.add(new JLabel("Context Size:"), gbc);
         
-        Integer[] contextSizes = new Integer[16];
+        Integer[] contextSizes = new Integer[18];
+        contextSizes[0] = 4096;
+        contextSizes[1] = 8192;
         for (int i = 0; i < 16; i++) {
-            contextSizes[i] = (i + 1) * 16384;
+            contextSizes[i + 2] = (i + 1) * 16384;
         }
         contextSizeCombo = new JComboBox<>(contextSizes);
         contextSizeCombo.setToolTipText("Context window size sent to the model");
