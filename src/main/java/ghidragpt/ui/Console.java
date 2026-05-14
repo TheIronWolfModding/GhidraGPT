@@ -113,13 +113,13 @@ public class Console extends JPanel {
     private void initializeStyles() {
         // Timestamp style - subtle blue-gray
         timestampStyle = textPane.addStyle("timestamp", null);
-        StyleConstants.setForeground(timestampStyle, new Color(108, 153, 187));
+        StyleConstants.setForeground(timestampStyle, new Color(255, 140, 0));
         StyleConstants.setBold(timestampStyle, false);
         StyleConstants.setItalic(timestampStyle, true);
         
         // Function name style - bright cyan for visibility
         functionStyle = textPane.addStyle("function", null);
-        StyleConstants.setForeground(functionStyle, new Color(102, 217, 239));
+        StyleConstants.setForeground(functionStyle, new Color(255, 140, 0));
         StyleConstants.setBold(functionStyle, true);
         
         // Result style - clean white with slight warmth
@@ -192,7 +192,7 @@ public class Console extends JPanel {
         clearButton.setPreferredSize(new Dimension(110, 24));
         clearButton.addActionListener(e -> clearConsole());
         
-        JButton copyButton = createStyledButton("Copy (Ctrl+C)", new Color(102, 217, 239));
+        JButton copyButton = createStyledButton("Copy (Ctrl+C)", new Color(255, 140, 0));
         copyButton.setPreferredSize(new Dimension(110, 24));
         copyButton.addActionListener(e -> copyToClipboard());
         
