@@ -45,6 +45,7 @@ public class ConfigurationPanel extends JPanel {
     private final JTextField debugFileField;
     private final JTextArea systemPromptArea;
     private final JTextArea customInstructionsArea;
+    private final JCheckBox lockPromptsCheckbox;
     private final JCheckBox enableThinkingCheckbox;
     private final JSpinner thinkingThresholdSpinner;
     private final JLabel thinkingThresholdLabel;
@@ -332,8 +333,15 @@ public class ConfigurationPanel extends JPanel {
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(debugPanel, gbc);
         
-        // System Prompt
+        // Lock Prompts checkbox
+        lockPromptsCheckbox = new JCheckBox("Lock prompts");
+        lockPromptsCheckbox.setToolTipText("Lock system prompt and custom instructions to prevent accidental edits");
         gbc.gridx = 0; gbc.gridy = 23; gbc.gridwidth = 2;
+        gbc.insets = new Insets(5, 5, 2, 5);
+        formPanel.add(lockPromptsCheckbox, gbc);
+
+        // System Prompt
+        gbc.gridx = 0; gbc.gridy = 24; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
         formPanel.add(new JLabel("System Prompt:"), gbc);
         
@@ -343,13 +351,13 @@ public class ConfigurationPanel extends JPanel {
         systemPromptArea.setToolTipText("System prompt sent to the LLM (role: system)");
         JScrollPane systemPromptScrollPane = new JScrollPane(systemPromptArea);
         systemPromptScrollPane.setPreferredSize(new Dimension(300, 45));
-        gbc.gridx = 0; gbc.gridy = 24; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 25; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(systemPromptScrollPane, gbc);
 
         // Custom Prompt Instructions
-        gbc.gridx = 0; gbc.gridy = 25; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 26; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
         formPanel.add(new JLabel("Custom Prompt Instructions:"), gbc);
         
@@ -359,15 +367,24 @@ public class ConfigurationPanel extends JPanel {
         customInstructionsArea.setToolTipText("Extra instructions appended to the LLM prompt (e.g. 'Always use camelCase names')");
         JScrollPane instructionsScrollPane = new JScrollPane(customInstructionsArea);
         instructionsScrollPane.setPreferredSize(new Dimension(300, 60));
-        gbc.gridx = 0; gbc.gridy = 26; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 27; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(instructionsScrollPane, gbc);
         
+        // Wire lock prompts listener now that both text areas exist
+        lockPromptsCheckbox.addActionListener(e -> {
+            boolean locked = lockPromptsCheckbox.isSelected();
+            systemPromptArea.setEnabled(!locked);
+            customInstructionsArea.setEnabled(!locked);
+            configDirty = true;
+            saveButton.setEnabled(true);
+        });
+
         // Vertical spacer to push everything to the top
         JPanel spacer = new JPanel();
         spacer.setOpaque(false);
-        gbc.gridx = 0; gbc.gridy = 27; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 28; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.weighty = 1.0;
         gbc.weightx = 1.0;
@@ -479,6 +496,9 @@ public class ConfigurationPanel extends JPanel {
         debugFileField.setEnabled("load".equals(debugMode));
         systemPromptArea.setText(configManager.getSystemPrompt());
         customInstructionsArea.setText(configManager.getCustomInstructions());
+        lockPromptsCheckbox.setSelected(configManager.isLockPrompts());
+        systemPromptArea.setEnabled(!configManager.isLockPrompts());
+        customInstructionsArea.setEnabled(!configManager.isLockPrompts());
         
         // Update visibility of custom URL field
         APIClient.GPTProvider provider = configManager.getProvider();
@@ -613,6 +633,7 @@ public class ConfigurationPanel extends JPanel {
         configManager.setDebugFile(debugFileField.getText().trim());
         configManager.setSystemPrompt(systemPromptArea.getText());
         configManager.setCustomInstructions(customInstructionsArea.getText());
+        configManager.setLockPrompts(lockPromptsCheckbox.isSelected());
         configManager.saveConfiguration();
         
         // Apply to GPT service

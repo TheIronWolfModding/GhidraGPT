@@ -27,6 +27,7 @@ public class ConfigurationManager {
     private static final String APPLY_FUNCTION_PROTOTYPE_PROPERTY = "rewrite.apply.function.prototype";
     private static final String CUSTOM_INSTRUCTIONS_PROPERTY = "rewrite.custom.instructions";
     private static final String SYSTEM_PROMPT_PROPERTY = "api.system.prompt";
+    private static final String LOCK_PROMPTS_PROPERTY = "ui.lock.prompts";
     private static final String DEFAULT_SYSTEM_PROMPT = "You are an expert in reverse engineering decompiled C/C++ code from Ghidra.";
     private static final String PRINT_REWRITE_SUMMARY_PROPERTY = "rewrite.print.summary";
     private static final String DEBUG_MODE_PROPERTY = "rewrite.debug.mode";
@@ -333,6 +334,14 @@ public class ConfigurationManager {
 
     public void setSystemPrompt(String prompt) {
         properties.setProperty(SYSTEM_PROMPT_PROPERTY, prompt != null ? prompt : DEFAULT_SYSTEM_PROMPT);
+    }
+
+    public boolean isLockPrompts() {
+        return Boolean.parseBoolean(properties.getProperty(LOCK_PROMPTS_PROPERTY, "false"));
+    }
+
+    public void setLockPrompts(boolean lock) {
+        properties.setProperty(LOCK_PROMPTS_PROPERTY, String.valueOf(lock));
     }
 
     public boolean isEnableThinking() {
