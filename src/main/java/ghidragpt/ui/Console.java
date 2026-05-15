@@ -93,8 +93,10 @@ public class Console extends JPanel {
                             e.consume();
                             break;
                         case KeyEvent.VK_C:
-                            copyToClipboard();
-                            e.consume();
+                            if (e.isShiftDown()) {
+                                copyToClipboard();
+                                e.consume();
+                            }
                             break;
                         case KeyEvent.VK_PAUSE:
                         case KeyEvent.VK_CANCEL:
@@ -192,8 +194,8 @@ public class Console extends JPanel {
         clearButton.setPreferredSize(new Dimension(110, 24));
         clearButton.addActionListener(e -> clearConsole());
         
-        JButton copyButton = createStyledButton("Copy (Ctrl+C)", new Color(255, 140, 0));
-        copyButton.setPreferredSize(new Dimension(110, 24));
+        JButton copyButton = createStyledButton("Copy (Ctrl+Shift+C)", new Color(255, 140, 0));
+        copyButton.setPreferredSize(new Dimension(150, 24));
         copyButton.addActionListener(e -> copyToClipboard());
         
         cancelButton = createStyledButton("Cancel (Ctrl+Pause)", new Color(229, 192, 123));
