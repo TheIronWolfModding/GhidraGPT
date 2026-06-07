@@ -106,6 +106,7 @@ public class Provider extends ComponentProvider {
         createShowConsoleAction();
         createShowDataTypesAction();
         createSaveConfigAction();
+        createRestoreConfigAction();
     }
 
     private void createShowConfigAction() {
@@ -141,6 +142,27 @@ public class Provider extends ComponentProvider {
             KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx())));
         action.setDescription("Save GhidraGPT configuration");
+        plugin.getTool().addAction(action);
+    }
+
+    private void createRestoreConfigAction() {
+        DockingAction action = new DockingAction("Restore GhidraGPT Config", getName()) {
+            @Override
+            public void actionPerformed(ActionContext context) {
+                if (isVisible() && tabbedPane.getSelectedIndex() == 0) {
+                    configPanel.restoreConfiguration();
+                }
+            }
+
+            @Override
+            public boolean isEnabledForContext(ActionContext context) {
+                return isVisible() && tabbedPane.getSelectedIndex() == 0;
+            }
+        };
+        action.setKeyBindingData(new KeyBindingData(
+            KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z,
+                java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx())));
+        action.setDescription("Restore GhidraGPT configuration to last saved state");
         plugin.getTool().addAction(action);
     }
 

@@ -29,6 +29,7 @@ public class ConfigurationPanel extends JPanel {
     private final JSpinner processingTimeoutSpinner;
     private final JButton testButton;
     private final JButton saveButton;
+    private final JButton restoreButton;
     private final JLabel statusLabel;
     private boolean configDirty = false;
     private final JCheckBox applyFunctionRenameCheckbox;
@@ -64,18 +65,19 @@ public class ConfigurationPanel extends JPanel {
         toolbar.setMinimumSize(new Dimension(200, 32));
         toolbar.setPreferredSize(new Dimension(400, 32));
         
-        testButton = new JButton("Test Connection");
-        testButton.setToolTipText("Test connectivity to the selected LLM provider");
-        testButton.addActionListener(e -> testConnection());
-        testButton.setPreferredSize(new Dimension(130, 28));
-        toolbar.add(testButton);
-        
         saveButton = new JButton("Save");
         saveButton.setToolTipText("Save configuration to disk");
         saveButton.addActionListener(e -> saveConfiguration());
         saveButton.setPreferredSize(new Dimension(120, 28));
         saveButton.setEnabled(false);
         toolbar.add(saveButton);
+        
+        restoreButton = new JButton("Restore");
+        restoreButton.setToolTipText("Revert to last saved configuration");
+        restoreButton.addActionListener(e -> restoreConfiguration());
+        restoreButton.setPreferredSize(new Dimension(130, 28));
+        restoreButton.setEnabled(false);
+        toolbar.add(restoreButton);
         
         toolbar.add(Box.createHorizontalStrut(10));
         statusLabel = new JLabel("Not configured");
@@ -90,8 +92,16 @@ public class ConfigurationPanel extends JPanel {
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.anchor = GridBagConstraints.WEST;
         
-        // API Provider
-        gbc.gridx = 0; gbc.gridy = 0;
+        // API Provider (moved to end of form)
+        JSeparator providerSep = new JSeparator();
+        gbc.gridx = 0; gbc.gridy = 26; gbc.gridwidth = 2;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(10, 5, 2, 5);
+        formPanel.add(providerSep, gbc);
+
+        gbc.gridx = 0; gbc.gridy = 27; gbc.gridwidth = 1;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.insets = new Insets(5, 5, 5, 5);
         formPanel.add(new JLabel("API Provider:"), gbc);
         
         providerCombo = new JComboBox<>(APIClient.GPTProvider.values());
@@ -101,7 +111,7 @@ public class ConfigurationPanel extends JPanel {
         formPanel.add(providerCombo, gbc);
         
         // API Key
-        gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.NONE;
+        gbc.gridx = 0; gbc.gridy = 28; gbc.fill = GridBagConstraints.NONE;
         formPanel.add(new JLabel("API Key:"), gbc);
         
         apiKeyField = new JPasswordField(30);
@@ -109,8 +119,18 @@ public class ConfigurationPanel extends JPanel {
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(apiKeyField, gbc);
         
+        // Test Connection button
+        testButton = new JButton("Test Connection");
+        testButton.setToolTipText("Test connectivity to the selected LLM provider");
+        testButton.addActionListener(e -> testConnection());
+        testButton.setPreferredSize(new Dimension(130, 28));
+        gbc.gridx = 0; gbc.gridy = 29; gbc.gridwidth = 2;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        formPanel.add(testButton, gbc);
+        
         // Model
-        gbc.gridx = 0; gbc.gridy = 2; gbc.fill = GridBagConstraints.NONE;
+        gbc.gridx = 0; gbc.gridy = 0; gbc.fill = GridBagConstraints.NONE;
         formPanel.add(new JLabel("Model:"), gbc);
         
         // Create a panel to hold model combo and fetch button
@@ -131,7 +151,7 @@ public class ConfigurationPanel extends JPanel {
         formPanel.add(modelPanel, gbc);
         
         // Custom API URL (for OpenAI Compatible provider)
-        gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.NONE;
+        gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.NONE;
         customApiUrlLabel = new JLabel("Custom API URL:");
         formPanel.add(customApiUrlLabel, gbc);
         
@@ -145,7 +165,7 @@ public class ConfigurationPanel extends JPanel {
         customApiUrlField.setVisible(false);
         
         // Max Tokens
-        gbc.gridx = 0; gbc.gridy = 4; gbc.fill = GridBagConstraints.NONE;
+        gbc.gridx = 0; gbc.gridy = 2; gbc.fill = GridBagConstraints.NONE;
         formPanel.add(new JLabel("Max Tokens:"), gbc);
         
         maxTokensSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_MAX_TOKENS, 100, 131072, 1024));
@@ -154,7 +174,7 @@ public class ConfigurationPanel extends JPanel {
         formPanel.add(maxTokensSpinner, gbc);
         
         // Context Size
-        gbc.gridx = 0; gbc.gridy = 5; gbc.fill = GridBagConstraints.NONE;
+        gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.NONE;
         formPanel.add(new JLabel("Context Size:"), gbc);
         
         Integer[] contextSizes = new Integer[18];
@@ -180,7 +200,7 @@ public class ConfigurationPanel extends JPanel {
         formPanel.add(contextSizeCombo, gbc);
         
         // Temperature
-        gbc.gridx = 0; gbc.gridy = 6; gbc.fill = GridBagConstraints.NONE;
+        gbc.gridx = 0; gbc.gridy = 4; gbc.fill = GridBagConstraints.NONE;
         formPanel.add(new JLabel("Temperature:"), gbc);
         
         temperatureSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_TEMPERATURE, 0.0, 2.0, 0.1));
@@ -189,7 +209,7 @@ public class ConfigurationPanel extends JPanel {
         formPanel.add(temperatureSpinner, gbc);
         
         // Connection Timeout
-        gbc.gridx = 0; gbc.gridy = 7; gbc.fill = GridBagConstraints.NONE;
+        gbc.gridx = 0; gbc.gridy = 5; gbc.fill = GridBagConstraints.NONE;
         formPanel.add(new JLabel("Connection timeout (s):"), gbc);
         
         timeoutSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_TIMEOUT_SECONDS, 5, 300, 5));
@@ -198,99 +218,99 @@ public class ConfigurationPanel extends JPanel {
         formPanel.add(timeoutSpinner, gbc);
 
         // Max response size
-        gbc.gridx = 0; gbc.gridy = 8; gbc.gridwidth = 1;
+        gbc.gridx = 0; gbc.gridy = 6; gbc.gridwidth = 1;
         gbc.fill = GridBagConstraints.NONE;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(new JLabel("Max response size (KB):"), gbc);
         maxResponseSizeSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_MAX_RESPONSE_SIZE_KB, 0, 10240, 64));
         maxResponseSizeSpinner.setToolTipText("Maximum content response size in KB (0 = no limit). Cancels stream if exceeded.");
-        gbc.gridx = 1; gbc.gridy = 8;
+        gbc.gridx = 1; gbc.gridy = 6;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(maxResponseSizeSpinner, gbc);
 
         // Rewrite Options separator
-        gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 8; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(10, 5, 2, 5);
         JSeparator separator = new JSeparator();
         formPanel.add(separator, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(new JLabel("Rewrite Options:"), gbc);
         
         // Apply Function Rename checkbox
         applyFunctionRenameCheckbox = new JCheckBox("Apply function renames");
         applyFunctionRenameCheckbox.setToolTipText("Allow GhidraGPT to rename functions based on analysis");
-        gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 10; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(applyFunctionRenameCheckbox, gbc);
         
         // Apply Function Prototype checkbox
         applyFunctionPrototypeCheckbox = new JCheckBox("Apply function prototypes");
         applyFunctionPrototypeCheckbox.setToolTipText("Allow GhidraGPT to update function signatures (return type, parameters)");
-        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 11; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(applyFunctionPrototypeCheckbox, gbc);
 
         // Print Suggestion Summary checkbox
         printRewriteSummaryCheckbox = new JCheckBox("Print rewrite summary");
         printRewriteSummaryCheckbox.setToolTipText("Print per-suggestion success/failure summary to console after rewrite");
-        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 12; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(printRewriteSummaryCheckbox, gbc);
 
         // Re-rename checkboxes (allow re-renaming already-named items)
         renameNamedLocalsCheckbox = new JCheckBox("Re-rename already named locals");
         renameNamedLocalsCheckbox.setToolTipText("Allow LLM to rename local variables that already have descriptive names (not decompiler defaults)");
-        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 13; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(renameNamedLocalsCheckbox, gbc);
 
         renameNamedFieldsCheckbox = new JCheckBox("Re-rename already named fields");
         renameNamedFieldsCheckbox.setToolTipText("Allow LLM to rename struct fields that already have m_ prefixed names");
-        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 14; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(renameNamedFieldsCheckbox, gbc);
 
         renameNamedFunctionsCheckbox = new JCheckBox("Re-rename already named functions");
         renameNamedFunctionsCheckbox.setToolTipText("Allow LLM to rename function calls that already have F_/M_ prefixed names");
-        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 15; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(renameNamedFunctionsCheckbox, gbc);
 
         renameNamedClassesCheckbox = new JCheckBox("Re-rename already named classes");
         renameNamedClassesCheckbox.setToolTipText("Allow LLM to rename classes that already have C_ prefixed names (not cls_0x defaults)");
-        gbc.gridx = 0; gbc.gridy = 18; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 16; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(renameNamedClassesCheckbox, gbc);
 
         // Enable Thinking checkbox (Ollama only)
         enableThinkingCheckbox = new JCheckBox("Enable thinking (Ollama)");
         enableThinkingCheckbox.setToolTipText("Allow model to reason before answering (uses more output tokens)");
-        gbc.gridx = 0; gbc.gridy = 19; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 17; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(enableThinkingCheckbox, gbc);
 
         // Thinking threshold spinner
         thinkingThresholdLabel = new JLabel("Min thinking prompt (KB):");
-        gbc.gridx = 0; gbc.gridy = 20; gbc.gridwidth = 1;
+        gbc.gridx = 0; gbc.gridy = 18; gbc.gridwidth = 1;
         gbc.insets = new Insets(2, 20, 2, 5);
         formPanel.add(thinkingThresholdLabel, gbc);
         thinkingThresholdSpinner = new JSpinner(new SpinnerNumberModel(10, 0, 1000, 1));
         thinkingThresholdSpinner.setToolTipText("Thinking is only sent when prompt size exceeds this threshold (0 = always think)");
-        gbc.gridx = 1; gbc.gridy = 20;
+        gbc.gridx = 1; gbc.gridy = 18;
         gbc.insets = new Insets(2, 5, 2, 5);
         formPanel.add(thinkingThresholdSpinner, gbc);
 
         // Thinking timeout spinner
         thinkingTimeoutLabel = new JLabel("Thinking timeout (min):");
-        gbc.gridx = 0; gbc.gridy = 21; gbc.gridwidth = 1;
+        gbc.gridx = 0; gbc.gridy = 19; gbc.gridwidth = 1;
         gbc.insets = new Insets(2, 20, 5, 5);
         formPanel.add(thinkingTimeoutLabel, gbc);
         processingTimeoutSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_PROCESSING_TIMEOUT_MINUTES, 0, 120, 1));
         processingTimeoutSpinner.setToolTipText("Max time for model thinking phase in minutes (0 = no limit). Content generation is not affected.");
-        gbc.gridx = 1; gbc.gridy = 21;
+        gbc.gridx = 1; gbc.gridy = 19;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(processingTimeoutSpinner, gbc);
         enableThinkingCheckbox.addActionListener(e -> updateThinkingThresholdState());
@@ -329,19 +349,19 @@ public class ConfigurationPanel extends JPanel {
         debugPanel.add(debugPathField);
         debugPanel.add(new JLabel("File:"));
         debugPanel.add(debugFileField);
-        gbc.gridx = 0; gbc.gridy = 22; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 20; gbc.gridwidth = 2;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(debugPanel, gbc);
         
         // Lock Prompts checkbox
         lockPromptsCheckbox = new JCheckBox("Lock prompts");
         lockPromptsCheckbox.setToolTipText("Lock system prompt and custom instructions to prevent accidental edits");
-        gbc.gridx = 0; gbc.gridy = 23; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 21; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
         formPanel.add(lockPromptsCheckbox, gbc);
 
         // System Prompt
-        gbc.gridx = 0; gbc.gridy = 24; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 22; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
         formPanel.add(new JLabel("System Prompt:"), gbc);
         
@@ -351,13 +371,13 @@ public class ConfigurationPanel extends JPanel {
         systemPromptArea.setToolTipText("System prompt sent to the LLM (role: system)");
         JScrollPane systemPromptScrollPane = new JScrollPane(systemPromptArea);
         systemPromptScrollPane.setPreferredSize(new Dimension(300, 45));
-        gbc.gridx = 0; gbc.gridy = 25; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 23; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(systemPromptScrollPane, gbc);
 
         // Custom Prompt Instructions
-        gbc.gridx = 0; gbc.gridy = 26; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 24; gbc.gridwidth = 2;
         gbc.insets = new Insets(5, 5, 2, 5);
         formPanel.add(new JLabel("Custom Prompt Instructions:"), gbc);
         
@@ -367,7 +387,7 @@ public class ConfigurationPanel extends JPanel {
         customInstructionsArea.setToolTipText("Extra instructions appended to the LLM prompt (e.g. 'Always use camelCase names')");
         JScrollPane instructionsScrollPane = new JScrollPane(customInstructionsArea);
         instructionsScrollPane.setPreferredSize(new Dimension(300, 60));
-        gbc.gridx = 0; gbc.gridy = 27; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 25; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 5, 5, 5);
         formPanel.add(instructionsScrollPane, gbc);
@@ -379,12 +399,13 @@ public class ConfigurationPanel extends JPanel {
             customInstructionsArea.setEnabled(!locked);
             configDirty = true;
             saveButton.setEnabled(true);
+            restoreButton.setEnabled(true);
         });
 
         // Vertical spacer to push everything to the top
         JPanel spacer = new JPanel();
         spacer.setOpaque(false);
-        gbc.gridx = 0; gbc.gridy = 28; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 30; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.weighty = 1.0;
         gbc.weightx = 1.0;
@@ -401,7 +422,7 @@ public class ConfigurationPanel extends JPanel {
         loadConfiguration();
         
         // Attach change listeners to mark config dirty
-        Runnable markDirty = () -> { configDirty = true; saveButton.setEnabled(true); };
+        Runnable markDirty = () -> { configDirty = true; saveButton.setEnabled(true); restoreButton.setEnabled(true); };
         providerCombo.addActionListener(e -> markDirty.run());
         modelCombo.addActionListener(e -> markDirty.run());
         contextSizeCombo.addActionListener(e -> markDirty.run());
@@ -652,7 +673,18 @@ public class ConfigurationPanel extends JPanel {
         
         configDirty = false;
         saveButton.setEnabled(false);
+        restoreButton.setEnabled(false);
         statusLabel.setText("Configuration saved");
+        statusLabel.setForeground(Color.BLUE);
+    }
+    
+    void restoreConfiguration() {
+        configManager.loadConfiguration();
+        loadConfiguration();
+        configDirty = false;
+        saveButton.setEnabled(false);
+        restoreButton.setEnabled(false);
+        statusLabel.setText("Configuration restored");
         statusLabel.setForeground(Color.BLUE);
     }
     

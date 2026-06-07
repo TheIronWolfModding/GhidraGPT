@@ -57,7 +57,7 @@ public class ConfigurationManager {
     /**
      * Loads configuration from file, creates default if doesn't exist
      */
-    private void loadConfiguration() {
+    public void loadConfiguration() {
         try {
             // Create config directory if it doesn't exist
             Path configDir = Paths.get(CONFIG_DIR);

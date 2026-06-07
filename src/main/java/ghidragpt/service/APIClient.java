@@ -712,14 +712,25 @@ public class APIClient {
         );
         request.stream = true;
         request.think = enableThinking;
-        request.options = new java.util.HashMap<>(Map.of(
-            "num_predict", maxTokens,
-            "num_ctx", contextSize,
-            "temperature", temperature,
-            "repeat_penalty", 1.3,
-            "repeat_last_n", -1,
-            "frequency_penalty", 0.5
-        ));
+        if (enableThinking) {
+            // When thinking is enabled, repetition penalties must be neutral —
+            // thinking tokens are naturally repetitive, and penalties applied over
+            // the full context cause degenerate multilingual/garbage output.
+            request.options = new java.util.HashMap<>(Map.of(
+                "num_predict", maxTokens,
+                "num_ctx", contextSize,
+                "temperature", temperature
+            ));
+        } else {
+            request.options = new java.util.HashMap<>(Map.of(
+                "num_predict", maxTokens,
+                "num_ctx", contextSize,
+                "temperature", temperature,
+                "repeat_penalty", 1.3,
+                "repeat_last_n", -1,
+                "frequency_penalty", 0.5
+            ));
+        }
         
         String jsonRequest = objectMapper.writeValueAsString(request);
         Msg.info(this, "Ollama request: model=" + request.model + " num_predict=" + maxTokens + " num_ctx=" + contextSize + " temperature=" + temperature);
