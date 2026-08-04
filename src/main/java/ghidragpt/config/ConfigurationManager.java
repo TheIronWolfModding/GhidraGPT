@@ -353,7 +353,7 @@ public class ConfigurationManager {
     }
 
     public int getThinkingThresholdKb() {
-        return Integer.parseInt(properties.getProperty(THINKING_THRESHOLD_PROPERTY, "10"));
+        return Integer.parseInt(properties.getProperty(THINKING_THRESHOLD_PROPERTY, "0"));
     }
 
     public void setThinkingThresholdKb(int kb) {

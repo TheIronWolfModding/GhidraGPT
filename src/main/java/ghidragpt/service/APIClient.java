@@ -726,9 +726,8 @@ public class APIClient {
                 "num_predict", maxTokens,
                 "num_ctx", contextSize,
                 "temperature", temperature,
-                "repeat_penalty", 1.3,
-                "repeat_last_n", -1,
-                "frequency_penalty", 0.5
+                "repeat_penalty", 1.1,
+                "repeat_last_n", 256
             ));
         }
         
