@@ -36,6 +36,8 @@ public class APIClient {
     public static final int DEFAULT_MAX_TOKENS = 16384;
     public static final int DEFAULT_CONTEXT_SIZE = 32768;
     public static final double DEFAULT_TEMPERATURE = 0.1;
+    public static final double DEFAULT_TOP_P = 0.9;
+    public static final int DEFAULT_TOP_K = 40;
     public static final double DEFAULT_PRESENCE_PENALTY = 0.0;
     public static final double DEFAULT_REPETITION_PENALTY = 1.1;
     public static final int DEFAULT_MAX_RESPONSE_SIZE_KB = 0;
@@ -51,6 +53,8 @@ public class APIClient {
     private int maxTokens = DEFAULT_MAX_TOKENS;
     private int contextSize = DEFAULT_CONTEXT_SIZE;
     private double temperature = DEFAULT_TEMPERATURE;
+    private double topP = DEFAULT_TOP_P;
+    private int topK = DEFAULT_TOP_K;
     private double presencePenalty = DEFAULT_PRESENCE_PENALTY;
     private double repetitionPenalty = DEFAULT_REPETITION_PENALTY;
     private int timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
@@ -125,6 +129,14 @@ public class APIClient {
     
     public void setTemperature(double temperature) {
         this.temperature = temperature;
+    }
+
+    public void setTopP(double topP) {
+        this.topP = topP;
+    }
+
+    public void setTopK(int topK) {
+        this.topK = topK;
     }
 
     public void setPresencePenalty(double presencePenalty) {
@@ -209,6 +221,14 @@ public class APIClient {
     
     public double getTemperature() {
         return temperature;
+    }
+
+    public double getTopP() {
+        return topP;
+    }
+
+    public int getTopK() {
+        return topK;
     }
 
     public double getPresencePenalty() {
@@ -739,13 +759,17 @@ public class APIClient {
             request.options = new java.util.HashMap<>(Map.of(
                 "num_predict", maxTokens,
                 "num_ctx", contextSize,
-                "temperature", temperature
+                "temperature", temperature,
+                "top_p", topP,
+                "top_k", topK
             ));
         } else {
             request.options = new java.util.HashMap<>(Map.of(
                 "num_predict", maxTokens,
                 "num_ctx", contextSize,
                 "temperature", temperature,
+                "top_p", topP,
+                "top_k", topK,
                 "presence_penalty", presencePenalty,
                 "repeat_penalty", repetitionPenalty,
                 "repeat_last_n", 256

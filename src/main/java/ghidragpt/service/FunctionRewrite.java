@@ -108,6 +108,8 @@ public class FunctionRewrite {
     private String[][] buildOptionsArray(boolean thinkingActive) {
         java.util.List<String[]> opts = new java.util.ArrayList<>();
         opts.add(new String[]{"temperature", String.format("%.2f", apiClient.getTemperature())});
+        opts.add(new String[]{"top_p", String.format("%.2f", apiClient.getTopP())});
+        opts.add(new String[]{"top_k", String.valueOf(apiClient.getTopK())});
         opts.add(new String[]{"presence_penalty", String.format("%.2f", apiClient.getPresencePenalty())});
         opts.add(new String[]{"repeat_penalty", String.format("%.2f", apiClient.getRepetitionPenalty())});
         opts.add(new String[]{"max_tokens", String.valueOf(apiClient.getMaxTokens())});

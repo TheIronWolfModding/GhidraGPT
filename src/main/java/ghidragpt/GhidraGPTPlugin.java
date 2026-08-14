@@ -77,6 +77,8 @@ public class GhidraGPTPlugin extends ProgramPlugin {
                 apiClient.setModel(configManager.getModel());
                 apiClient.setMaxTokens(configManager.getMaxTokens());
                 apiClient.setTemperature(configManager.getTemperature());
+                apiClient.setTopP(configManager.getTopP());
+                apiClient.setTopK(configManager.getTopK());
                 apiClient.setPresencePenalty(configManager.getPresencePenalty());
                 apiClient.setRepetitionPenalty(configManager.getRepetitionPenalty());
                 apiClient.setTimeoutSeconds(configManager.getTimeoutSeconds());

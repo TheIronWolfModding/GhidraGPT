@@ -21,6 +21,8 @@ public class ConfigurationManager {
     private static final String MAX_TOKENS_PROPERTY = "api.max.tokens";
     private static final String CONTEXT_SIZE_PROPERTY = "api.context.size";
     private static final String TEMPERATURE_PROPERTY = "api.temperature";
+    private static final String TOP_P_PROPERTY = "api.top.p";
+    private static final String TOP_K_PROPERTY = "api.top.k";
     private static final String PRESENCE_PENALTY_PROPERTY = "api.presence.penalty";
     private static final String REPETITION_PENALTY_PROPERTY = "api.repetition.penalty";
     private static final String TIMEOUT_PROPERTY = "api.timeout.seconds";
@@ -200,6 +202,24 @@ public class ConfigurationManager {
      */
     public void setTemperature(double temperature) {
         properties.setProperty(TEMPERATURE_PROPERTY, String.valueOf(temperature));
+    }
+
+    public double getTopP() {
+        return Double.parseDouble(properties.getProperty(TOP_P_PROPERTY,
+                String.valueOf(APIClient.DEFAULT_TOP_P)));
+    }
+
+    public void setTopP(double topP) {
+        properties.setProperty(TOP_P_PROPERTY, String.valueOf(topP));
+    }
+
+    public int getTopK() {
+        return Integer.parseInt(properties.getProperty(TOP_K_PROPERTY,
+                String.valueOf(APIClient.DEFAULT_TOP_K)));
+    }
+
+    public void setTopK(int topK) {
+        properties.setProperty(TOP_K_PROPERTY, String.valueOf(topK));
     }
 
     public double getPresencePenalty() {

@@ -25,6 +25,8 @@ public class ConfigurationPanel extends JPanel {
     private final JSpinner maxTokensSpinner;
     private final JComboBox<Integer> contextSizeCombo;
     private final JSpinner temperatureSpinner;
+    private final JSpinner topPSpinner;
+    private final JSpinner topKSpinner;
     private final JSpinner presencePenaltySpinner;
     private final JSpinner repetitionPenaltySpinner;
     private final JSpinner timeoutSpinner;
@@ -209,6 +211,22 @@ public class ConfigurationPanel extends JPanel {
         temperatureSpinner.setToolTipText("Sampling temperature (lower = more deterministic, higher = more creative)");
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
         formPanel.add(temperatureSpinner, gbc);
+
+        // Top-p sampling
+        gbc.gridx = 0; gbc.gridy = 5; gbc.fill = GridBagConstraints.NONE;
+        formPanel.add(new JLabel("Top-p:"), gbc);
+        topPSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_TOP_P, 0.0, 1.0, 0.05));
+        topPSpinner.setToolTipText("Nucleus sampling probability threshold");
+        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
+        formPanel.add(topPSpinner, gbc);
+
+        // Top-k sampling
+        gbc.gridx = 0; gbc.gridy = 6; gbc.fill = GridBagConstraints.NONE;
+        formPanel.add(new JLabel("Top-k:"), gbc);
+        topKSpinner = new JSpinner(new SpinnerNumberModel(APIClient.DEFAULT_TOP_K, 0, 200, 1));
+        topKSpinner.setToolTipText("Limits sampling to the top K candidate tokens (0 = disabled)");
+        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL;
+        formPanel.add(topKSpinner, gbc);
 
         // Presence penalty (Ollama only)
         gbc.gridx = 0; gbc.gridy = 7; gbc.fill = GridBagConstraints.NONE;
@@ -478,6 +496,8 @@ public class ConfigurationPanel extends JPanel {
         });
         maxTokensSpinner.addChangeListener(e -> markDirty.run());
         temperatureSpinner.addChangeListener(e -> markDirty.run());
+        topPSpinner.addChangeListener(e -> markDirty.run());
+        topKSpinner.addChangeListener(e -> markDirty.run());
         presencePenaltySpinner.addChangeListener(e -> markDirty.run());
         repetitionPenaltySpinner.addChangeListener(e -> markDirty.run());
         timeoutSpinner.addChangeListener(e -> markDirty.run());
@@ -516,6 +536,8 @@ public class ConfigurationPanel extends JPanel {
         maxTokensSpinner.setValue(configManager.getMaxTokens());
         contextSizeCombo.setSelectedItem(configManager.getContextSize());
         temperatureSpinner.setValue(configManager.getTemperature());
+        topPSpinner.setValue(configManager.getTopP());
+        topKSpinner.setValue(configManager.getTopK());
         presencePenaltySpinner.setValue(configManager.getPresencePenalty());
         repetitionPenaltySpinner.setValue(configManager.getRepetitionPenalty());
         timeoutSpinner.setValue(configManager.getTimeoutSeconds());
@@ -564,6 +586,8 @@ public class ConfigurationPanel extends JPanel {
             apiClient.setMaxTokens(configManager.getMaxTokens());
             apiClient.setContextSize(configManager.getContextSize());
             apiClient.setTemperature(configManager.getTemperature());
+            apiClient.setTopP(configManager.getTopP());
+            apiClient.setTopK(configManager.getTopK());
             apiClient.setPresencePenalty(configManager.getPresencePenalty());
             apiClient.setRepetitionPenalty(configManager.getRepetitionPenalty());
             apiClient.setTimeoutSeconds(configManager.getTimeoutSeconds());
@@ -663,6 +687,8 @@ public class ConfigurationPanel extends JPanel {
         configManager.setMaxTokens((Integer) maxTokensSpinner.getValue());
         configManager.setContextSize((Integer) contextSizeCombo.getSelectedItem());
         configManager.setTemperature((Double) temperatureSpinner.getValue());
+        configManager.setTopP((Double) topPSpinner.getValue());
+        configManager.setTopK((Integer) topKSpinner.getValue());
         configManager.setPresencePenalty((Double) presencePenaltySpinner.getValue());
         configManager.setRepetitionPenalty((Double) repetitionPenaltySpinner.getValue());
         configManager.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
@@ -693,6 +719,8 @@ public class ConfigurationPanel extends JPanel {
         apiClient.setMaxTokens((Integer) maxTokensSpinner.getValue());
         apiClient.setContextSize((Integer) contextSizeCombo.getSelectedItem());
         apiClient.setTemperature((Double) temperatureSpinner.getValue());
+        apiClient.setTopP((Double) topPSpinner.getValue());
+        apiClient.setTopK((Integer) topKSpinner.getValue());
         apiClient.setPresencePenalty((Double) presencePenaltySpinner.getValue());
         apiClient.setRepetitionPenalty((Double) repetitionPenaltySpinner.getValue());
         apiClient.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
@@ -749,6 +777,8 @@ public class ConfigurationPanel extends JPanel {
         apiClient.setMaxTokens((Integer) maxTokensSpinner.getValue());
         apiClient.setContextSize((Integer) contextSizeCombo.getSelectedItem());
         apiClient.setTemperature((Double) temperatureSpinner.getValue());
+        apiClient.setTopP((Double) topPSpinner.getValue());
+        apiClient.setTopK((Integer) topKSpinner.getValue());
         apiClient.setPresencePenalty((Double) presencePenaltySpinner.getValue());
         apiClient.setRepetitionPenalty((Double) repetitionPenaltySpinner.getValue());
         apiClient.setTimeoutSeconds((Integer) timeoutSpinner.getValue());
