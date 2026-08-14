@@ -77,6 +77,8 @@ public class GhidraGPTPlugin extends ProgramPlugin {
                 apiClient.setModel(configManager.getModel());
                 apiClient.setMaxTokens(configManager.getMaxTokens());
                 apiClient.setTemperature(configManager.getTemperature());
+                apiClient.setPresencePenalty(configManager.getPresencePenalty());
+                apiClient.setRepetitionPenalty(configManager.getRepetitionPenalty());
                 apiClient.setTimeoutSeconds(configManager.getTimeoutSeconds());
                 
                 Msg.info(this, "GhidraGPT configuration loaded successfully. Provider: " + 

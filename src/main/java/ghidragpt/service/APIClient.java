@@ -36,6 +36,8 @@ public class APIClient {
     public static final int DEFAULT_MAX_TOKENS = 16384;
     public static final int DEFAULT_CONTEXT_SIZE = 32768;
     public static final double DEFAULT_TEMPERATURE = 0.1;
+    public static final double DEFAULT_PRESENCE_PENALTY = 0.0;
+    public static final double DEFAULT_REPETITION_PENALTY = 1.1;
     public static final int DEFAULT_MAX_RESPONSE_SIZE_KB = 0;
     
     private OkHttpClient httpClient;
@@ -49,6 +51,8 @@ public class APIClient {
     private int maxTokens = DEFAULT_MAX_TOKENS;
     private int contextSize = DEFAULT_CONTEXT_SIZE;
     private double temperature = DEFAULT_TEMPERATURE;
+    private double presencePenalty = DEFAULT_PRESENCE_PENALTY;
+    private double repetitionPenalty = DEFAULT_REPETITION_PENALTY;
     private int timeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
     private int processingTimeoutMinutes = DEFAULT_PROCESSING_TIMEOUT_MINUTES;
     private int maxResponseSizeKb = DEFAULT_MAX_RESPONSE_SIZE_KB;
@@ -121,6 +125,14 @@ public class APIClient {
     
     public void setTemperature(double temperature) {
         this.temperature = temperature;
+    }
+
+    public void setPresencePenalty(double presencePenalty) {
+        this.presencePenalty = presencePenalty;
+    }
+
+    public void setRepetitionPenalty(double repetitionPenalty) {
+        this.repetitionPenalty = repetitionPenalty;
     }
 
     public void setEnableThinking(boolean enableThinking) {
@@ -197,6 +209,14 @@ public class APIClient {
     
     public double getTemperature() {
         return temperature;
+    }
+
+    public double getPresencePenalty() {
+        return presencePenalty;
+    }
+
+    public double getRepetitionPenalty() {
+        return repetitionPenalty;
     }
     
     public int getTimeoutSeconds() {
@@ -726,7 +746,8 @@ public class APIClient {
                 "num_predict", maxTokens,
                 "num_ctx", contextSize,
                 "temperature", temperature,
-                "repeat_penalty", 1.1,
+                "presence_penalty", presencePenalty,
+                "repeat_penalty", repetitionPenalty,
                 "repeat_last_n", 256
             ));
         }

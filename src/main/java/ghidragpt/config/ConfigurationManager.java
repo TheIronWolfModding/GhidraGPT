@@ -21,6 +21,8 @@ public class ConfigurationManager {
     private static final String MAX_TOKENS_PROPERTY = "api.max.tokens";
     private static final String CONTEXT_SIZE_PROPERTY = "api.context.size";
     private static final String TEMPERATURE_PROPERTY = "api.temperature";
+    private static final String PRESENCE_PENALTY_PROPERTY = "api.presence.penalty";
+    private static final String REPETITION_PENALTY_PROPERTY = "api.repetition.penalty";
     private static final String TIMEOUT_PROPERTY = "api.timeout.seconds";
     private static final String CUSTOM_API_URL_PROPERTY = "api.custom.url";
     private static final String APPLY_FUNCTION_RENAME_PROPERTY = "rewrite.apply.function.rename";
@@ -198,6 +200,24 @@ public class ConfigurationManager {
      */
     public void setTemperature(double temperature) {
         properties.setProperty(TEMPERATURE_PROPERTY, String.valueOf(temperature));
+    }
+
+    public double getPresencePenalty() {
+        return Double.parseDouble(properties.getProperty(PRESENCE_PENALTY_PROPERTY,
+                String.valueOf(APIClient.DEFAULT_PRESENCE_PENALTY)));
+    }
+
+    public void setPresencePenalty(double presencePenalty) {
+        properties.setProperty(PRESENCE_PENALTY_PROPERTY, String.valueOf(presencePenalty));
+    }
+
+    public double getRepetitionPenalty() {
+        return Double.parseDouble(properties.getProperty(REPETITION_PENALTY_PROPERTY,
+                String.valueOf(APIClient.DEFAULT_REPETITION_PENALTY)));
+    }
+
+    public void setRepetitionPenalty(double repetitionPenalty) {
+        properties.setProperty(REPETITION_PENALTY_PROPERTY, String.valueOf(repetitionPenalty));
     }
     
     /**
