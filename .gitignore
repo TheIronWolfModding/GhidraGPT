@@ -2,6 +2,9 @@
 target/
 dependency-reduced-pom.xml
 
+# Local machine settings (user-specific paths: GHIDRA_INSTALL_DIR, etc.)
+test.env
+
 # Gradle (legacy)
 gradlew.bat
 .gradle/

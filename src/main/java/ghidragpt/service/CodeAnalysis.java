@@ -34,6 +34,17 @@ public class CodeAnalysis {
         this.decompiler = new DecompInterface();
         this.functionRewriteService = new FunctionRewrite(apiClient, console, configManager);
     }
+
+    /**
+     * Package-private constructor for tests: inject the decompiler and rewrite
+     * service so no real DecompInterface is constructed.
+     */
+    CodeAnalysis(APIClient apiClient, Console console, DecompInterface decompiler, FunctionRewrite functionRewriteService) {
+        this.apiClient = apiClient;
+        this.console = console;
+        this.decompiler = decompiler;
+        this.functionRewriteService = functionRewriteService;
+    }
     
     public void initializeDecompiler(Program program) {
         DecompileOptions options = new DecompileOptions();
@@ -240,16 +251,6 @@ public class CodeAnalysis {
                "\n\nPlease configure the API settings in the Configuration tab.";
     }
     
-    private String createEmptyResponseError() {
-        return "Empty or no response from model service.\n\n" +
-               "Possible causes:\n" +
-               "1. API key is invalid or expired\n" +
-               "2. Network connectivity issues\n" +
-               "3. API rate limits exceeded\n" +
-               "4. Service is temporarily unavailable\n\n" +
-               createConfigurationStatus();
-    }
-    
     private String createConfigurationStatus() {
         StringBuilder status = new StringBuilder();
         status.append("Current Configuration:\n");
@@ -263,7 +264,7 @@ public class CodeAnalysis {
     }
     
     // Prompt building methods
-    private String buildVulnerabilityPrompt(String code, String contextInfo) {
+    String buildVulnerabilityPrompt(String code, String contextInfo) {
         return "SECURITY ANALYSIS - Find REAL, EXPLOITABLE vulnerabilities only:\n\n" +
                "Context: " + contextInfo + "\n\n" +
                "Code:\n" + code + "\n\n" +
@@ -292,7 +293,7 @@ public class CodeAnalysis {
                "with no extra details";
     }
     
-    private String buildExplanationPrompt(String code, String functionName) {
+    String buildExplanationPrompt(String code, String functionName) {
         return "CONCISE FUNCTION ANALYSIS for: " + functionName + "\n\n" +
                "Code:\n" + code + "\n\n" +
                "Provide a BRIEF, focused explanation in this format:\n\n" +

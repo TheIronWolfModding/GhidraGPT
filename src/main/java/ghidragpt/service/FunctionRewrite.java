@@ -81,7 +81,7 @@ import java.util.Date;
  */
 public class FunctionRewrite {
     
-    private final DecompInterface decompiler;
+    private DecompInterface decompiler;
     private final APIClient apiClient;
     private final Console console;
     private final PromptBuilder promptBuilder;
@@ -131,16 +131,27 @@ public class FunctionRewrite {
     }
 
     public FunctionRewrite(APIClient apiClient, Console console, ConfigurationManager configManager) {
+        this(apiClient, console, configManager, createDecompiler());
+    }
+
+    /**
+     * Package-private constructor exposing the DecompInterface for tests.
+     */
+    FunctionRewrite(APIClient apiClient, Console console, ConfigurationManager configManager, DecompInterface decompiler) {
         this.apiClient = apiClient;
         this.console = console;
         this.configManager = configManager;
-        this.decompiler = new DecompInterface();
-        DecompileOptions options = new DecompileOptions();
-        decompiler.setOptions(options);
+        this.decompiler = decompiler;
         this.promptBuilder = new PromptBuilder();
         this.responseParser = new ResponseParser();
         this.functionModifier = null; // Will be initialized per operation
         this.objectMapper = new ObjectMapper();
+    }
+
+    private static DecompInterface createDecompiler() {
+        DecompInterface di = new DecompInterface();
+        di.setOptions(new DecompileOptions());
+        return di;
     }
     
     /**
@@ -546,7 +557,7 @@ public class FunctionRewrite {
     /**
      * Extract variable analyses from function for domain model
      */
-    private List<VariableAnalysis> extractVariableAnalyses(Function function, HighFunction highFunction) {
+    List<VariableAnalysis> extractVariableAnalyses(Function function, HighFunction highFunction) {
         List<VariableAnalysis> analyses = new ArrayList<>();
         Set<String> seenNames = new HashSet<>();
         
@@ -587,7 +598,7 @@ public class FunctionRewrite {
     /**
      * Extract global variables referenced by this function from the decompiler's global symbol map.
      */
-    private List<GlobalVarInfo> extractGlobalReferences(HighFunction highFunction) {
+    List<GlobalVarInfo> extractGlobalReferences(HighFunction highFunction) {
         List<GlobalVarInfo> globals = new ArrayList<>();
         if (highFunction == null) {
             return globals;
@@ -636,7 +647,7 @@ public class FunctionRewrite {
      * on any variable (this, local, parameter, etc.).
      * Returns a map of field name -> example access expression.
      */
-    private Map<String, String> extractMemberFieldReferences(String decompiledCode) {
+    Map<String, String> extractMemberFieldReferences(String decompiledCode) {
         Map<String, String> fields = new LinkedHashMap<>();
         
         Pattern pattern = Pattern.compile("(\\w+)\\s*(?:->|\\.)((?:field|mbr_)\\w+)");
@@ -658,7 +669,7 @@ public class FunctionRewrite {
      * Finds FUN_* (global functions) and *::meth_* (member functions) patterns.
      * Returns a map of function name -> example call expression.
      */
-    private Map<String, String> extractFunctionCallReferences(String decompiledCode) {
+    Map<String, String> extractFunctionCallReferences(String decompiledCode) {
         Map<String, String> funcs = new LinkedHashMap<>();
         
         // Match any_namespace::meth_0x* member function calls (cls_0x*, OOAnalyzer::ClassName::, etc.)
@@ -688,7 +699,7 @@ public class FunctionRewrite {
      * Extract class/struct references from decompiled code.
      * Finds cls_0x* (unnamed classes), C_* and other named classes used in casts or namespaces.
      */
-    private Set<String> extractClassReferences(String decompiledCode) {
+    Set<String> extractClassReferences(String decompiledCode) {
         Set<String> classes = new LinkedHashSet<>();
         
         // Match cls_0x* unnamed classes
@@ -803,7 +814,7 @@ public class FunctionRewrite {
     /**
      * Generate comprehensive rewrite prompt for model analysis
      */
-    private String generateComprehensiveRewritePrompt(Function function, String decompiledCode, FunctionAnalysis functionAnalysis, List<GlobalVarInfo> globalRefs) {
+    String generateComprehensiveRewritePrompt(Function function, String decompiledCode, FunctionAnalysis functionAnalysis, List<GlobalVarInfo> globalRefs) {
         StringBuilder prompt = new StringBuilder();
         if (configManager != null) {
             String customInstructions = configManager.getCustomInstructions();
@@ -1047,7 +1058,7 @@ public class FunctionRewrite {
      * Parses model response to extract function renames and variable renames
      * Uses simple text format only
      */
-    private EnhancementSuggestions parseEnhancementResponse(String response) {
+    EnhancementSuggestions parseEnhancementResponse(String response) {
         EnhancementSuggestions suggestions = new EnhancementSuggestions();
         parseTextResponse(response, suggestions);
         return suggestions;
@@ -1056,7 +1067,7 @@ public class FunctionRewrite {
     /**
      * Holds enhancement suggestions from model
      */
-    private static class EnhancementSuggestions {
+    static class EnhancementSuggestions {
         String functionName;
         Map<String, String> variableRenames = new HashMap<>();
         Map<String, String> typeHints = new HashMap<>();
@@ -1065,7 +1076,7 @@ public class FunctionRewrite {
     /**
      * Parses comprehensive rewrite response from model (JSON format)
      */
-    private ComprehensiveRewriteSpec parseComprehensiveRewriteResponse(String response) {
+    ComprehensiveRewriteSpec parseComprehensiveRewriteResponse(String response) {
         ComprehensiveRewriteSpec spec = new ComprehensiveRewriteSpec();
         
         try {
@@ -1105,7 +1116,7 @@ public class FunctionRewrite {
      * LLMs sometimes emit duplicate keys where the first occurrence has meaningful names
      * and later duplicates have generic filler names (e.g. doubleBuffer83). We keep the first.
      */
-    private ComprehensiveRewriteSpec parseSimpleJson(String jsonStr) {
+    ComprehensiveRewriteSpec parseSimpleJson(String jsonStr) {
         ComprehensiveRewriteSpec spec = new ComprehensiveRewriteSpec();
 
         try {
@@ -1212,7 +1223,7 @@ public class FunctionRewrite {
      * Strip "this->" prefix from map keys so struct field references
      * (e.g. "this->field_0x138") are normalized to bare field names ("field_0x138").
      */
-    private Map<String, String> stripThisPrefix(Map<String, String> map) {
+    Map<String, String> stripThisPrefix(Map<String, String> map) {
         Map<String, String> normalized = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : map.entrySet()) {
             String key = entry.getKey();
@@ -1970,7 +1981,7 @@ public class FunctionRewrite {
     /**
      * Result of a single rename attempt within a batch.
      */
-    private static class RenameResult {
+    static class RenameResult {
         final String oldName;
         final String newName;
         final boolean applied;
@@ -1988,7 +1999,7 @@ public class FunctionRewrite {
      * Decompiles once, collects all symbols, then applies renames sequentially
      * against the same snapshot so that decompiler-temporary numbering stays stable.
      */
-    private List<RenameResult> applyVariableRenameBatch(Function function, Program program,
+    List<RenameResult> applyVariableRenameBatch(Function function, Program program,
             Map<String, String> renames, TaskMonitor monitor) {
         List<RenameResult> results = new ArrayList<>();
         
@@ -2259,12 +2270,12 @@ public class FunctionRewrite {
     /**
      * Returns true if the name is a Ghidra code label that should never be renamed.
      */
-    private boolean isCodeLabel(String name) {
+    boolean isCodeLabel(String name) {
         return name.startsWith("LAB_") || name.startsWith("vftable_") ||
                name.startsWith("switchD_") || name.startsWith("caseD_");
     }
 
-    private boolean isMemberFieldName(String name) {
+    boolean isMemberFieldName(String name) {
         return name.startsWith("mbr_") || name.startsWith("field") || name.startsWith("m_");
     }
     
@@ -2272,7 +2283,7 @@ public class FunctionRewrite {
      * Returns true if the name is a Ghidra decompiler auto-generated name
      * (safe to overwrite). User-assigned descriptive names return false.
      */
-    private boolean isDecompilerGeneratedName(String name) {
+    boolean isDecompilerGeneratedName(String name) {
         if (name.matches("param_\\d+")) return true;
         if (name.matches("local_[0-9a-fA-F]+")) return true;
         if (name.matches("local_[A-Z]+_\\d+")) return true;
@@ -2290,7 +2301,7 @@ public class FunctionRewrite {
      * Returns true if the field name is a decompiler/tool default (safe to overwrite).
      * Does NOT match user-assigned m_ names.
      */
-    private boolean isDefaultFieldName(String name) {
+    boolean isDefaultFieldName(String name) {
         return name.startsWith("mbr_") || name.startsWith("field");
     }
     
@@ -2298,7 +2309,7 @@ public class FunctionRewrite {
      * Normalize a name to camelCase, strip any m_/g_ prefix the model may have added.
      * Handles snake_case, PascalCase, and already-camelCase inputs.
      */
-    private String normalizeToCamelCase(String name) {
+    String normalizeToCamelCase(String name) {
         if (name == null || name.isEmpty()) return name;
         // Strip m_ or g_ prefix if model already added one
         if (name.startsWith("m_") || name.startsWith("g_")) {
@@ -2332,7 +2343,7 @@ public class FunctionRewrite {
         return Character.toLowerCase(name.charAt(0)) + name.substring(1);
     }
     
-    private String normalizeToPascalCase(String name) {
+    String normalizeToPascalCase(String name) {
         if (name == null || name.isEmpty()) return name;
         // Strip any prefix the model may have added
         if (name.startsWith("M_") || name.startsWith("F_") || name.startsWith("MV_")) {
@@ -2368,7 +2379,7 @@ public class FunctionRewrite {
     /**
      * Normalize common type names: uppercase variants to lowercase (INT->int, FLOAT->float, etc.)
      */
-    private void normalizeTypeValues(Map<String, String> typeMap) {
+    void normalizeTypeValues(Map<String, String> typeMap) {
         for (Map.Entry<String, String> entry : typeMap.entrySet()) {
             String val = entry.getValue();
             if (val == null) continue;
@@ -2770,7 +2781,7 @@ public class FunctionRewrite {
      * then as an offset from the function entry point.
      * Places comments as EOL (inline) comments.
      */
-    private boolean applyComment(Function function, Program program, String addressStr, String commentText) {
+    boolean applyComment(Function function, Program program, String addressStr, String commentText) {
         try {
             Address entryPoint = function.getEntryPoint();
             
@@ -2821,7 +2832,7 @@ public class FunctionRewrite {
      * Apply a global variable rename using the program's SymbolTable.
      * Only renames globals that still have default auto-generated names.
      */
-    private boolean applyGlobalRename(Program program, String oldName, String newName) {
+    boolean applyGlobalRename(Program program, String oldName, String newName) {
         try {
             if (!isDefaultGlobalName(oldName)) {
                 Msg.info(this, "Skipping global rename: " + oldName + " is not a default name (already user-renamed)");
@@ -2876,7 +2887,7 @@ public class FunctionRewrite {
      * Check if a global symbol name is a default auto-generated name.
      * Ghidra generates names like DAT_, FUN_, cls_, LAB_, s_, PTR_, EXT_, etc.
      */
-    private boolean isDefaultGlobalName(String name) {
+    boolean isDefaultGlobalName(String name) {
         if (name == null || name.isEmpty()) {
             return false;
         }
@@ -2890,7 +2901,7 @@ public class FunctionRewrite {
      * Apply a global variable type change.
      * Finds the data at the symbol's address and re-creates it with the new type.
      */
-    private String applyGlobalTypeChange(Program program, String globalName, String newTypeName) {
+    String applyGlobalTypeChange(Program program, String globalName, String newTypeName) {
         try {
             SymbolTable symbolTable = program.getSymbolTable();
             Address addr = null;
@@ -2979,7 +2990,7 @@ public class FunctionRewrite {
     /**
      * Check if full commit is required 
      */
-    private static boolean checkFullCommit(HighSymbol highSymbol, HighFunction hfunction) {
+    static boolean checkFullCommit(HighSymbol highSymbol, HighFunction hfunction) {
         if (highSymbol != null && !highSymbol.isParameter()) {
             return false;
         }
@@ -3008,7 +3019,7 @@ public class FunctionRewrite {
     /**
      * Resolve data type from string
      */
-    private DataType resolveDataType(DataTypeManager dtm, String typeName) {
+    DataType resolveDataType(DataTypeManager dtm, String typeName) {
         // First try to find exact match
         DataType dataType = findDataTypeByNameInAllCategories(dtm, typeName);
         if (dataType != null) {
@@ -3225,7 +3236,7 @@ public class FunctionRewrite {
     /**
      * Holds global variable information referenced by a function
      */
-    private static class GlobalVarInfo {
+    static class GlobalVarInfo {
         String name;
         String type;
         Address address;
@@ -3234,7 +3245,7 @@ public class FunctionRewrite {
     /**
      * Holds variable information
      */
-    private static class VariableInfo {
+    static class VariableInfo {
         String name;
         String type;
         boolean isParameter;
@@ -3263,7 +3274,7 @@ public class FunctionRewrite {
     /**
      * Holds comprehensive rewrite suggestions from model
      */
-    private static class ComprehensiveRewriteSpec {
+    static class ComprehensiveRewriteSpec {
         String functionName;
         Map<String, String> variableRenames = new HashMap<>();
         Map<String, String> variableTypes = new HashMap<>();

@@ -51,10 +51,21 @@ public class ConfigurationManager {
     
     private final Properties properties;
     private final Path configPath;
-    
+    private final Path configDir;
+
     public ConfigurationManager() {
+        this(Paths.get(CONFIG_DIR));
+    }
+
+    /**
+     * Creates a manager that reads/writes properties under the given base directory.
+     * The no-arg constructor uses the user-home default; this one is intended for
+     * tests so no real config location is ever touched.
+     */
+    public ConfigurationManager(Path baseDir) {
         this.properties = new Properties();
-        this.configPath = Paths.get(CONFIG_DIR, CONFIG_FILE);
+        this.configDir = baseDir;
+        this.configPath = baseDir.resolve(CONFIG_FILE);
         loadConfiguration();
     }
     
@@ -64,11 +75,10 @@ public class ConfigurationManager {
     public void loadConfiguration() {
         try {
             // Create config directory if it doesn't exist
-            Path configDir = Paths.get(CONFIG_DIR);
             if (!Files.exists(configDir)) {
                 Files.createDirectories(configDir);
             }
-            
+
             // Load existing configuration or create default
             if (Files.exists(configPath)) {
                 try (InputStream input = Files.newInputStream(configPath)) {
@@ -98,11 +108,10 @@ public class ConfigurationManager {
     public void saveConfiguration() {
         try {
             // Ensure config directory exists
-            Path configDir = Paths.get(CONFIG_DIR);
             if (!Files.exists(configDir)) {
                 Files.createDirectories(configDir);
             }
-            
+
             try (OutputStream output = Files.newOutputStream(configPath)) {
                 properties.store(output, "GhidraGPT Configuration");
             }
@@ -539,14 +548,14 @@ public class ConfigurationManager {
         String encryptedKey = properties.getProperty(API_KEY_ENCRYPTED_PROPERTY);
         return encryptedKey != null && !encryptedKey.trim().isEmpty();
     }
-    
+
     /**
-     * This method is no longer needed since we only use encrypted storage
-     * Kept for API compatibility but does nothing
+     * Retained for source compatibility with older integrations. API keys are
+     * encrypted whenever set, so there is no migration work to perform.
      */
     @Deprecated
     public void migrateToEncryptedApiKey() {
-        // No-op: We always use encrypted storage now
+        // API keys are always stored in encrypted form.
     }
     
     /**

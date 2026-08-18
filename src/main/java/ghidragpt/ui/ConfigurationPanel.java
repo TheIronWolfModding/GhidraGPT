@@ -59,8 +59,12 @@ public class ConfigurationPanel extends JPanel {
     private final JPanel toolbar;
     
     public ConfigurationPanel(APIClient apiClient) {
+        this(apiClient, new ConfigurationManager());
+    }
+
+    ConfigurationPanel(APIClient apiClient, ConfigurationManager configManager) {
         this.apiClient = apiClient;
-        this.configManager = new ConfigurationManager();
+        this.configManager = configManager;
         
         setLayout(new BorderLayout());
         
@@ -592,6 +596,7 @@ public class ConfigurationPanel extends JPanel {
             apiClient.setRepetitionPenalty(configManager.getRepetitionPenalty());
             apiClient.setTimeoutSeconds(configManager.getTimeoutSeconds());
             apiClient.setProcessingTimeoutMinutes(configManager.getProcessingTimeoutMinutes());
+            apiClient.setMaxResponseSizeKb(configManager.getMaxResponseSizeKb());
             apiClient.setEnableThinking(configManager.isEnableThinking());
             apiClient.setSystemPrompt(configManager.getSystemPrompt());
         } else {

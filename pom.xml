@@ -16,6 +16,10 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
+        <!-- Ghidra install location. Machine-specific: set via the exported
+             GHIDRA_INSTALL_DIR (see the local, gitignored test.env). r-utst.sh
+             sources test.env automatically; for manual builds run
+             `source test.env` first. -->
         <ghidra.install.dir>${env.GHIDRA_INSTALL_DIR}</ghidra.install.dir>
     </properties>
 
@@ -106,6 +110,57 @@
             <artifactId>jackson-annotations</artifactId>
             <version>2.15.2</version>
         </dependency>
+
+        <!-- Read-only classpath artifacts so Mockito/MockStatic can resolve the full type
+             hierarchy of the interfaces we mock in tests. Ghidra is NEVER executed.
+             system scope keeps them on the test classpath but out of the bundled fat JAR. -->
+        <dependency>
+            <groupId>ghidra</groupId>
+            <artifactId>DB</artifactId>
+            <version>1.0</version>
+            <scope>system</scope>
+            <systemPath>${ghidra.install.dir}/Ghidra/Framework/DB/lib/DB.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>ghidra</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>1.0</version>
+            <scope>system</scope>
+            <systemPath>${ghidra.install.dir}/Ghidra/Framework/Generic/lib/commons-lang3-3.17.0.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>ghidra</groupId>
+            <artifactId>javahelp</artifactId>
+            <version>1.0</version>
+            <scope>system</scope>
+            <systemPath>${ghidra.install.dir}/Ghidra/Framework/Help/lib/javahelp-2.0.05.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>ghidra</groupId>
+            <artifactId>FileSystem</artifactId>
+            <version>1.0</version>
+            <scope>system</scope>
+            <systemPath>${ghidra.install.dir}/Ghidra/Framework/FileSystem/lib/FileSystem.jar</systemPath>
+        </dependency>
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.17.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>4.12.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -123,6 +178,35 @@
                         <arg>-Xlint:deprecation</arg>
                     </compilerArgs>
                 </configuration>
+            </plugin>
+
+            <!-- Surefire (pinned for JDK 21) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.4</version>
+            </plugin>
+
+            <!-- JaCoCo coverage (report via: mvn verify) -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.15</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <!-- Shade plugin to create fat JAR with bundled dependencies -->
