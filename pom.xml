@@ -126,7 +126,7 @@
             <artifactId>commons-lang3</artifactId>
             <version>1.0</version>
             <scope>system</scope>
-            <systemPath>${ghidra.install.dir}/Ghidra/Framework/Generic/lib/commons-lang3-3.17.0.jar</systemPath>
+            <systemPath>${ghidra.install.dir}/Ghidra/Framework/Generic/lib/commons-lang3-3.20.0.jar</systemPath>
         </dependency>
         <dependency>
             <groupId>ghidra</groupId>

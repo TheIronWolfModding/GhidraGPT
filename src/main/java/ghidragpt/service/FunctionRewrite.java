@@ -28,6 +28,8 @@ import ghidra.program.model.data.Structure;
 import ghidra.program.model.data.DataTypeComponent;
 import ghidra.program.model.data.Pointer;
 import ghidra.program.model.data.Undefined1DataType;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import ghidra.app.services.DataTypeManagerService;
 import ghidra.app.util.parser.FunctionSignatureParser;
 import ghidra.program.model.data.FunctionDefinitionDataType;
@@ -2470,13 +2472,40 @@ public class FunctionRewrite {
         return null;
     }
     
+    /**
+     * Cross-version-compatible wrapper around {@code DataTypeComponent#setFieldName}.
+     * <p>
+     * Ghidra &lt;= 12.0 declares {@code void setFieldName(String) throws DuplicateNameException}
+     * while Ghidra &gt;= 12.1 declares {@code DataTypeComponent setFieldName(String)} with no
+     * throws clause (see GP-3564). These are distinct JVM method descriptors, so a jar compiled
+     * against one signature throws {@link NoSuchMethodError} at runtime against the other. Look
+     * the method up reflectively so this works regardless of which Ghidra version is loaded.
+     */
+    private static void setFieldNameCompat(DataTypeComponent component, String newName) throws DuplicateNameException {
+        try {
+            Method m = component.getClass().getMethod("setFieldName", String.class);
+            m.invoke(component, newName);
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof DuplicateNameException) {
+                throw (DuplicateNameException) cause;
+            }
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new RuntimeException("Failed to set field name", cause);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("Failed to set field name via reflection", e);
+        }
+    }
+
     private boolean tryRenameFieldOnStruct(Structure topStruct, String oldName, String newName, int maxSize) {
         try {
             // Strategy 1: Search by field name on this struct's direct fields
             DataTypeComponent found = findComponentByName(topStruct, oldName);
             if (found != null) {
                 try {
-                    found.setFieldName(newName);
+                    setFieldNameCompat(found, newName);
                     Msg.info(this, "Renamed struct field: " + oldName + " -> " + newName + " on " + topStruct.getName());
                     return true;
                 } catch (DuplicateNameException e) {
@@ -2525,7 +2554,7 @@ public class FunctionRewrite {
                                     return true;
                                 }
                             }
-                            component.setFieldName(newName);
+                            setFieldNameCompat(component, newName);
                             Msg.info(this, "Renamed struct field on " + topStruct.getName() + ": " + oldName + " -> " + newName + " at offset 0x" + Integer.toHexString(fieldOffset));
                             return true;
                         } catch (DuplicateNameException e) {
